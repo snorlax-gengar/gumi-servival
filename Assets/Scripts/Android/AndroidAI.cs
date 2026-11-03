@@ -1,0 +1,249 @@
+using UnityEngine;
+using UnityEngine.AI;
+
+/// <summary>
+/// 작업형 안드로이드. 상태 머신: 순찰 → (소리) 조사 → (시야) 추적 → 공격 → 놓치면 조사 후 복귀.
+/// 느리지만 강하다. 웅크리면 시야 탐지 거리가 줄어든다.
+/// NavMeshAgent + Damageable 필요. 씬에 NavMesh를 굽고(Bake) 사용.
+/// </summary>
+[RequireComponent(typeof(NavMeshAgent), typeof(Damageable))]
+public class AndroidAI : MonoBehaviour
+{
+    public enum State { Patrol, Investigate, Chase, Disabled }
+
+    [Header("순찰")]
+    public Transform[] waypoints;
+    public float patrolSpeed = 1.5f;
+    public float waitAtPoint = 2f;
+
+    [Header("감지")]
+    public float viewDistance = 12f;
+    public float viewAngle = 100f;
+    public float crouchViewMultiplier = 0.5f;
+    public float hearingMultiplier = 1f;   // 1보다 크면 귀가 밝음
+    public float eyeHeight = 0.7f;         // 피벗(캡슐 중심) 기준 눈 높이
+    public LayerMask obstacleMask = ~0;
+
+    [Header("추적/공격")]
+    public float chaseSpeed = 3.2f;   // 플레이어 걷기(3.5)보다 약간 느림, 달리면 따돌릴 수 있음
+    public float attackRange = 1.6f;
+    public float attackDamage = 18f;
+    public float attackCooldown = 1.5f;
+    public float loseSightTime = 4f;
+    public float investigateTime = 6f;
+
+    public State CurrentState { get; private set; } = State.Patrol;
+
+    NavMeshAgent agent;
+    Damageable body;
+    Transform player;
+    PlayerStats playerStats;
+    PlayerController playerController;
+
+    int wpIndex;
+    float waitTimer, attackTimer, lostTimer, investigateTimer;
+    Vector3 lastKnownPos, homePos;
+
+    void Awake()
+    {
+        agent = GetComponent<NavMeshAgent>();
+        body = GetComponent<Damageable>();
+        homePos = transform.position;
+
+        var p = GameObject.FindGameObjectWithTag("Player");
+        if (p != null)
+        {
+            player = p.transform;
+            playerStats = p.GetComponent<PlayerStats>();
+            playerController = p.GetComponent<PlayerController>();
+        }
+    }
+
+    void Start()
+    {
+        // NavMesh는 LevelNavMesh가 Awake에서 굽기 때문에, 에이전트는 그 뒤(Start)에 켠다
+        agent.enabled = true;
+        if (!agent.isOnNavMesh)
+            Debug.LogWarning($"{name}: NavMesh 위에 있지 않습니다. Level 오브젝트에 LevelNavMesh가 있는지 확인하세요.");
+    }
+
+    void SetDest(Vector3 pos)
+    {
+        if (agent.enabled && agent.isOnNavMesh) agent.SetDestination(pos);
+    }
+
+    void OnEnable()
+    {
+        NoiseSystem.OnNoise += HearNoise;
+        body.OnHit += OnHit;
+        body.OnDeath += OnDeath;
+    }
+
+    void OnDisable()
+    {
+        NoiseSystem.OnNoise -= HearNoise;
+        body.OnHit -= OnHit;
+        body.OnDeath -= OnDeath;
+    }
+
+    void Update()
+    {
+        if (CurrentState == State.Disabled || !agent.enabled || !agent.isOnNavMesh) return;
+        attackTimer -= Time.deltaTime;
+
+        bool sees = CanSeePlayer();
+        if (sees)
+        {
+            lastKnownPos = player.position;
+            lostTimer = loseSightTime;
+            CurrentState = State.Chase;
+        }
+
+        switch (CurrentState)
+        {
+            case State.Patrol: TickPatrol(); break;
+            case State.Investigate: TickInvestigate(); break;
+            case State.Chase: TickChase(sees); break;
+        }
+    }
+
+    // ---------- 상태 ----------
+
+    void TickPatrol()
+    {
+        agent.speed = patrolSpeed;
+        if (waypoints == null || waypoints.Length == 0)
+        {
+            if (Vector3.Distance(transform.position, homePos) > 1f) SetDest(homePos);
+            return;
+        }
+        if (agent.pathPending || agent.remainingDistance > 0.5f) return;
+
+        waitTimer -= Time.deltaTime;
+        if (waitTimer > 0) return;
+        waitTimer = waitAtPoint;
+        wpIndex = (wpIndex + 1) % waypoints.Length;
+        SetDest(waypoints[wpIndex].position);
+    }
+
+    void TickInvestigate()
+    {
+        agent.speed = (patrolSpeed + chaseSpeed) * 0.5f;
+        investigateTimer -= Time.deltaTime;
+        bool arrived = !agent.pathPending && agent.remainingDistance < 1f;
+
+        if (arrived)
+        {
+            // 도착하면 제자리에서 두리번거림
+            transform.Rotate(0, 90f * Time.deltaTime, 0);
+        }
+        if (investigateTimer <= 0) GoPatrol();
+    }
+
+    void TickChase(bool sees)
+    {
+        if (player == null || (playerStats != null && playerStats.IsDead)) { GoPatrol(); return; }
+
+        agent.speed = chaseSpeed;
+        float dist = Vector3.Distance(transform.position, player.position);
+
+        if (dist <= attackRange && sees)
+        {
+            if (agent.hasPath) agent.ResetPath();
+            Vector3 look = player.position - transform.position; look.y = 0;
+            if (look.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(look);
+
+            if (attackTimer <= 0)
+            {
+                attackTimer = attackCooldown;
+                playerStats?.TakeDamage(attackDamage);
+                NoiseSystem.Emit(transform.position, 6f);
+            }
+            return;
+        }
+
+        SetDest(lastKnownPos);
+
+        if (!sees)
+        {
+            lostTimer -= Time.deltaTime;
+            if (lostTimer <= 0) StartInvestigate(lastKnownPos);
+        }
+    }
+
+    // ---------- 감지 ----------
+
+    bool CanSeePlayer()
+    {
+        if (player == null || (playerStats != null && playerStats.IsDead)) return false;
+
+        Vector3 eye = transform.position + Vector3.up * eyeHeight;
+        Vector3 target = player.position + Vector3.up * 1.0f;
+        Vector3 dir = target - eye;
+        float dist = dir.magnitude;
+
+        float range = viewDistance;
+        if (playerController != null && playerController.IsCrouching) range *= crouchViewMultiplier;
+        if (dist > range) return false;
+
+        // 바로 옆(2m)은 각도와 관계없이 감지
+        if (dist > 2f && Vector3.Angle(transform.forward, new Vector3(dir.x, 0, dir.z)) > viewAngle * 0.5f)
+            return false;
+
+        if (Physics.Raycast(eye, dir.normalized, out RaycastHit hit, dist, obstacleMask, QueryTriggerInteraction.Ignore))
+            return hit.transform == player || hit.transform.IsChildOf(player);
+
+        return true;
+    }
+
+    void HearNoise(Vector3 pos, float radius)
+    {
+        if (CurrentState == State.Disabled || CurrentState == State.Chase) return;
+        if (Vector3.Distance(transform.position, pos) <= radius * hearingMultiplier)
+            StartInvestigate(pos);
+    }
+
+    void OnHit(Vector3 attackerPos)
+    {
+        if (CurrentState == State.Disabled) return;
+        lastKnownPos = attackerPos;
+        lostTimer = loseSightTime;
+        CurrentState = State.Chase;
+    }
+
+    void OnDeath()
+    {
+        CurrentState = State.Disabled;
+        if (agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
+        // 임시 연출: 쓰러짐
+        transform.rotation = Quaternion.Euler(90f, transform.eulerAngles.y, 0);
+        HUD.ShowMessage("안드로이드 정지");
+    }
+
+    // ---------- 전환 ----------
+
+    void StartInvestigate(Vector3 pos)
+    {
+        CurrentState = State.Investigate;
+        investigateTimer = investigateTime;
+        SetDest(pos);
+    }
+
+    void GoPatrol()
+    {
+        CurrentState = State.Patrol;
+        waitTimer = 0;
+        if (waypoints != null && waypoints.Length > 0) SetDest(waypoints[wpIndex].position);
+        else SetDest(homePos);
+    }
+
+    // 에디터에서 시야 범위 표시
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = CurrentState == State.Chase ? Color.red : CurrentState == State.Investigate ? Color.yellow : Color.cyan;
+        Vector3 l = Quaternion.Euler(0, -viewAngle / 2, 0) * transform.forward;
+        Vector3 r = Quaternion.Euler(0, viewAngle / 2, 0) * transform.forward;
+        Gizmos.DrawRay(transform.position + Vector3.up, l * viewDistance);
+        Gizmos.DrawRay(transform.position + Vector3.up, r * viewDistance);
+    }
+}
