@@ -96,7 +96,7 @@ public class HUD : MonoBehaviour
         if (messageTimer > 0 && !string.IsNullOrEmpty(message))
         {
             var c = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
-            GUI.Label(new Rect(0, Screen.height * 0.25f, Screen.width, 30), message, c);
+            GUI.Label(new Rect(0, Screen.height * 0.25f, Screen.width, 60), message, c);
         }
 
         // --- 사망 화면 ---

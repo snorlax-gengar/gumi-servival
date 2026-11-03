@@ -3,60 +3,116 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// 좌클릭 근접 공격. 장착 무기가 없으면 맨손(약함).
-/// 공격은 스태미나를 쓰고 소음을 낸다 — 싸울수록 주변 안드로이드가 몰려온다.
+/// 앞쪽으로 휘두르는 궤적이 보이고, 무거운 무기일수록 스태미나를 많이 쓴다.
+/// 공격은 소음을 낸다 — 싸울수록 주변 안드로이드가 몰려온다.
 /// </summary>
 public class PlayerCombat : MonoBehaviour
 {
     [Header("맨손")]
-    public float fistDamage = 5f;
-    public float fistRange = 1.4f;
-    public float fistCooldown = 0.6f;
+    public float fistDamage = 8f;
+    public float fistRange = 1.5f;
+    public float fistCooldown = 0.5f;
     public float fistNoise = 4f;
 
-    public float staminaCost = 12f;
-    public float hitAngle = 70f;  // 전방 판정 각도(도)
+    [Header("스태미나 = 기본 + 무기 무게(kg) x 계수")]
+    public float baseStaminaCost = 4f;
+    public float staminaPerKg = 3f;
+
+    public float hitAngle = 100f;  // 전방 판정 각도(도)
 
     float cooldown;
     Inventory inv;
     PlayerStats stats;
     readonly Collider[] hits = new Collider[16];
 
+    // 휘두르기 연출
+    Transform swing;
+    float swingTimer;
+    const float SwingDuration = 0.15f;
+    float swingRange = 1.5f;
+
     void Awake()
     {
         inv = GetComponent<Inventory>();
         stats = GetComponent<PlayerStats>();
+        BuildSwingVisual();
+    }
+
+    void BuildSwingVisual()
+    {
+        var pivot = new GameObject("SwingPivot").transform;
+        pivot.SetParent(transform, false);
+        pivot.localPosition = new Vector3(0, 1.1f, 0);
+
+        var blade = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        Destroy(blade.GetComponent<Collider>());
+        blade.name = "SwingBlade";
+        blade.transform.SetParent(pivot, false);
+        var r = blade.GetComponent<Renderer>();
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        r.material.color = new Color(1f, 0.95f, 0.8f);
+        r.material.SetColor("_BaseColor", new Color(1f, 0.95f, 0.8f));
+
+        swing = pivot;
+        swing.gameObject.SetActive(false);
     }
 
     void Update()
     {
         cooldown -= Time.deltaTime;
+        AnimateSwing();
         if (stats != null && stats.IsDead) return;
 
         var mouse = Mouse.current;
         if (mouse == null || !mouse.leftButton.wasPressedThisFrame || cooldown > 0) return;
-        if (stats != null && stats.stamina < staminaCost) { HUD.ShowMessage("너무 지쳤다"); return; }
 
         ItemData w = inv != null ? inv.EquippedWeapon : null;
         float dmg = w ? w.damage : fistDamage;
         float range = w ? w.attackRange : fistRange;
         float noise = w ? w.attackNoise : fistNoise;
-        cooldown = w ? w.attackCooldown : fistCooldown;
+        float cost = baseStaminaCost + (w ? w.weight : 0f) * staminaPerKg;
 
-        if (stats != null) stats.stamina -= staminaCost;
+        if (stats != null && stats.stamina < cost) { HUD.ShowMessage("너무 지쳤다 (스태미나 부족)"); return; }
+
+        cooldown = w ? w.attackCooldown : fistCooldown;
+        if (stats != null) stats.stamina -= cost;
         NoiseSystem.Emit(transform.position, noise);
+        StartSwing(range);
 
         Vector3 center = transform.position + Vector3.up;
-        int n = Physics.OverlapSphereNonAlloc(center, range, hits);
+        int n = Physics.OverlapSphereNonAlloc(center, range + 0.5f, hits);
         bool hitSomething = false;
         for (int i = 0; i < n; i++)
         {
             var d = hits[i].GetComponentInParent<Damageable>();
             if (d == null || d.IsDead) continue;
             Vector3 to = d.transform.position - transform.position; to.y = 0;
+            if (to.magnitude > range + 0.6f) continue;
             if (Vector3.Angle(transform.forward, to) > hitAngle * 0.5f) continue;
             d.TakeDamage(dmg, transform.position);
             hitSomething = true;
         }
-        if (!hitSomething) HUD.ShowMessage("빗나감", 0.5f);
+        if (!hitSomething) HUD.ShowMessage("빗나감", 0.4f);
+        else if (w == null) HUD.ShowMessage("맨손은 약하다. 무기를 찾자", 1.2f);
+    }
+
+    void StartSwing(float range)
+    {
+        swingRange = range;
+        swingTimer = SwingDuration;
+        var blade = swing.GetChild(0);
+        blade.localScale = new Vector3(0.08f, 0.08f, range);
+        blade.localPosition = new Vector3(0, 0, range * 0.5f);
+        swing.gameObject.SetActive(true);
+    }
+
+    void AnimateSwing()
+    {
+        if (swingTimer <= 0) return;
+        swingTimer -= Time.deltaTime;
+        float t = 1f - Mathf.Clamp01(swingTimer / SwingDuration);
+        float half = hitAngle * 0.5f;
+        swing.localRotation = Quaternion.Euler(0, Mathf.Lerp(-half, half, t), 0);
+        if (swingTimer <= 0) swing.gameObject.SetActive(false);
     }
 }

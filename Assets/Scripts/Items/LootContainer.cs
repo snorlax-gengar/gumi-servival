@@ -47,6 +47,7 @@ public class LootContainer : MonoBehaviour, IInteractable
         searched = true;
         NoiseSystem.Emit(transform.position, searchNoise);
 
+        ItemData weaponBefore = inv.EquippedWeapon;
         var taken = new List<string>();
         for (int i = contents.Count - 1; i >= 0; i--)
         {
@@ -59,6 +60,8 @@ public class LootContainer : MonoBehaviour, IInteractable
 
         string msg = taken.Count > 0 ? $"획득: {string.Join(", ", taken)}" : "아무것도 없다";
         if (contents.Count > 0) msg += " (너무 무거워서 일부 남김)";
+        if (inv.EquippedWeapon != null && inv.EquippedWeapon != weaponBefore)
+            msg += $"\n{inv.EquippedWeapon.displayName} 장착! 좌클릭으로 휘두르기";
         HUD.ShowMessage(msg);
     }
 }

@@ -49,6 +49,7 @@ public class AndroidAI : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         body = GetComponent<Damageable>();
         homePos = transform.position;
+        if (GetComponent<AndroidFeedback>() == null) gameObject.AddComponent<AndroidFeedback>();
 
         var p = GameObject.FindGameObjectWithTag("Player");
         if (p != null)
@@ -215,8 +216,10 @@ public class AndroidAI : MonoBehaviour
     {
         CurrentState = State.Disabled;
         if (agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
-        // 임시 연출: 쓰러짐
+        agent.enabled = false; // 에이전트가 위치를 다시 끌어올리지 않도록
+        // 쓰러짐: 옆으로 눕히고 바닥에 붙인다
         transform.rotation = Quaternion.Euler(90f, transform.eulerAngles.y, 0);
+        transform.position = new Vector3(transform.position.x, 0.55f, transform.position.z);
         HUD.ShowMessage("안드로이드 정지");
     }
 

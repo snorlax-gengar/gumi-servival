@@ -44,6 +44,13 @@ public class Inventory : MonoBehaviour
         var s = stacks.Find(x => x.item == item);
         if (s != null) s.count++;
         else stacks.Add(new Stack(item, 1));
+
+        // 맨손일 때 무기를 주우면 바로 장착
+        if (item.type == ItemType.Weapon && EquippedWeapon == null)
+        {
+            EquippedWeapon = item;
+            HUD.ShowMessage($"{item.displayName} 장착! (좌클릭으로 휘두르기)", 3f);
+        }
         OnChanged?.Invoke();
         return true;
     }

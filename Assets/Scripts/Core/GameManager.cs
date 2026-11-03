@@ -30,6 +30,11 @@ public class GameManager : MonoBehaviour
         if (p != null) player = p.GetComponent<PlayerStats>();
     }
 
+    void Start()
+    {
+        HUD.ShowMessage("배가 고프다... 바로 앞 주황색 공구함(E)부터 뒤져 보자", 7f);
+    }
+
     void Update()
     {
         if (player != null && player.IsDead)
