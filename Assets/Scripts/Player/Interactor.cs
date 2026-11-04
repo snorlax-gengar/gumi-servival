@@ -7,7 +7,7 @@ public interface IInteractable
 }
 
 /// <summary>
-/// 주변의 상호작용 가능한 오브젝트 중 가장 가까운 것을 찾아 E키로 상호작용.
+/// 주변의 상호작용 가능한 오브젝트 중 가장 가까운 것을 찾아 F키로 상호작용.
 /// 컨테이너에는 Collider가 있어야 한다.
 /// </summary>
 public class Interactor : MonoBehaviour
@@ -26,7 +26,7 @@ public class Interactor : MonoBehaviour
         if (stats != null && stats.IsDead) return;
 
         var kb = UnityEngine.InputSystem.Keyboard.current;
-        if (Current != null && kb != null && kb.eKey.wasPressedThisFrame)
+        if (Current != null && kb != null && kb.fKey.wasPressedThisFrame)
             Current.Interact(gameObject);
     }
 

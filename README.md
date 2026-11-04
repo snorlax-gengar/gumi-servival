@@ -9,7 +9,7 @@
 | `Player/PlayerController.cs` | WASD 이동, Shift 달리기, Ctrl 웅크리기, 마우스 방향 바라보기, 발소리 소음 |
 | `Player/IsometricCamera.cs` | 쿼터뷰 추적 카메라, 마우스 휠 줌 |
 | `Player/PlayerStats.cs` | 체력·배고픔·갈증·스태미나 |
-| `Player/Interactor.cs` | 가까운 물체와 E키 상호작용 |
+| `Player/Interactor.cs` | 가까운 물체와 F키 상호작용 |
 | `Items/ItemData.cs` | 아이템 정의 (ScriptableObject) |
 | `Items/Inventory.cs` | 무게 기반 인벤토리, 숫자키로 먹기/장착 |
 | `Items/LootContainer.cs` | 뒤질 수 있는 선반·냉장고·공구함, 랜덤 루팅 |
@@ -19,6 +19,8 @@
 | `Core/NoiseSystem.cs` | 모든 소음을 방송하는 허브 |
 | `Core/GameManager.cs` | 게임 내 시간(실제 1분 = 1시간), 낮밤, 재시작 |
 | `UI/HUD.cs` | 상태 바, 시계, 인벤토리, 사망 화면 (임시 UI) |
+| `UI/MinimapHUD.cs` | 미니맵, 전체 지도(M), 나침반, 조작 안내 |
+| `World/CityGenerator.cs` | 플레이마다 새로 생성되는 구미 시가지 |
 
 ## 조작
 
@@ -29,7 +31,10 @@
 | Ctrl | 웅크리기 (느림, 소음·발각 거리 감소) |
 | 마우스 | 바라보는 방향 |
 | 좌클릭 | 공격 |
-| E | 뒤지기 |
+| F | 뒤지기 |
+| Q / E | 카메라 90° 회전 |
+| 우클릭 드래그 | 카메라 자유 회전·기울기 |
+| M | 전체 지도 |
 | 1~9 | 아이템 사용/무기 장착 |
 | 휠 | 줌 |
 | R | 사망 후 재시작 |
@@ -136,7 +141,7 @@ Project 창에서 `Assets/Items` 폴더 생성 → 우클릭 → **Create → Gu
 - **한글이 □□로 보임** → 한글 폰트(.ttf, 예: 나눔고딕)를 Assets에 넣고 HUD의 Korean Font에 연결
 - **안드로이드가 안 움직임** → NavMesh를 구웠는지, 안드로이드가 파란 영역 위에 있는지 확인
 - **`InvalidOperationException: You are trying to read Input`** → Active Input Handling 설정 확인 (설치 5번 아래 참고)
-- **E키가 안 먹음** → 컨테이너에 Collider가 있는지, 2m 안에 있는지 확인
+- **F키가 안 먹음** → 컨테이너에 Collider가 있는지, 2m 안에 있는지 확인
 - **플레이어가 바닥으로 떨어짐** → Player Position Y를 1 이상으로
 
 ## 다음 단계 (프로토타입 0.2)

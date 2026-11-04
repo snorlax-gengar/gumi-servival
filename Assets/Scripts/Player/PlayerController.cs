@@ -89,6 +89,7 @@ public class PlayerController : MonoBehaviour
         var mouse = Mouse.current;
         Camera cam = Camera.main;
         if (mouse == null || cam == null) return;
+        if (mouse.rightButton.isPressed) return; // 카메라 회전 중에는 방향 유지
 
         Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
         Plane ground = new Plane(Vector3.up, transform.position);

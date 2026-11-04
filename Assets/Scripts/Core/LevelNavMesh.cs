@@ -12,6 +12,9 @@ public class LevelNavMesh : MonoBehaviour
 {
     NavMeshDataInstance instance;
 
+    /// <summary>맵 전체 범위 (미니맵 전체 지도에서 사용)</summary>
+    public static Bounds LevelBounds { get; private set; }
+
     void Awake()
     {
         Physics.SyncTransforms();
@@ -28,6 +31,7 @@ public class LevelNavMesh : MonoBehaviour
             if (first) { bounds = c.bounds; first = false; }
             else bounds.Encapsulate(c.bounds);
         }
+        LevelBounds = bounds;
         bounds.Expand(new Vector3(2f, 10f, 2f));
 
         NavMeshBuildSettings settings = NavMesh.GetSettingsByID(0);

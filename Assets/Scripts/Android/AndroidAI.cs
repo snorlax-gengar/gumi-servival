@@ -37,6 +37,7 @@ public class AndroidAI : MonoBehaviour
     public float alertCooldown = 10f;
 
     public State CurrentState { get; private set; } = State.Patrol;
+    public const int AndroidLayer = 31;
 
     NavMeshAgent agent;
     Damageable body;
@@ -63,6 +64,9 @@ public class AndroidAI : MonoBehaviour
         waitTimer = Random.Range(0f, waitAtPoint * 2f);
         wpIndex = waypoints != null && waypoints.Length > 0 ? Random.Range(0, waypoints.Length) : 0;
         if (GetComponent<AndroidFeedback>() == null) gameObject.AddComponent<AndroidFeedback>();
+
+        // 전용 레이어: 미니맵에 그대로 보이지 않게 하고, 카메라 가림 처리에서도 제외
+        foreach (var t in GetComponentsInChildren<Transform>(true)) t.gameObject.layer = AndroidLayer;
 
         var p = GameObject.FindGameObjectWithTag("Player");
         if (p != null)
