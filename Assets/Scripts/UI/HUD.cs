@@ -30,6 +30,7 @@ public class HUD : MonoBehaviour
         stats = GetComponent<PlayerStats>();
         inv = GetComponent<Inventory>();
         interactor = GetComponent<Interactor>();
+        if (GetComponent<GameRecorder>() == null) gameObject.AddComponent<GameRecorder>();
         white = Texture2D.whiteTexture;
     }
 
