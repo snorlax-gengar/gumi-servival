@@ -22,7 +22,7 @@ public class AndroidFeedback : MonoBehaviour
     GUIStyle hintStyle;
     Renderer[] renderers;
     MaterialPropertyBlock mpb;
-    Color[] baseColors;
+    Color[][] baseColors;   // [렌더러][재질 번호] — 재질이 여러 개인 모델도 각자 색을 지킨다
     float flashTimer, barTimer;
     Vector3 pushDir;
     float pushTimer;
@@ -38,11 +38,13 @@ public class AndroidFeedback : MonoBehaviour
         if (p != null) { player = p.transform; playerCtrl = p.GetComponent<PlayerController>(); }
         renderers = GetComponentsInChildren<Renderer>();
         mpb = new MaterialPropertyBlock();
-        baseColors = new Color[renderers.Length];
+        baseColors = new Color[renderers.Length][];
         for (int i = 0; i < renderers.Length; i++)
         {
-            var m = renderers[i].sharedMaterial;
-            baseColors[i] = m != null && m.HasProperty(BaseColorId) ? m.GetColor(BaseColorId) : Color.white;
+            var mats = renderers[i].sharedMaterials;
+            baseColors[i] = new Color[mats.Length];
+            for (int k = 0; k < mats.Length; k++)
+                baseColors[i][k] = mats[k] != null && mats[k].HasProperty(BaseColorId) ? mats[k].GetColor(BaseColorId) : Color.white;
         }
     }
 
@@ -72,7 +74,7 @@ public class AndroidFeedback : MonoBehaviour
     {
         flashTimer = 0;
         barTimer = 0;
-        SetColor(i => baseColors[i] * 0.35f);
+        SetColor(c => c * 0.35f);
     }
 
     void Update()
@@ -89,18 +91,32 @@ public class AndroidFeedback : MonoBehaviour
         if (flashTimer > 0)
         {
             flashTimer -= Time.deltaTime;
-            if (flashTimer <= 0) SetColor(i => baseColors[i]);
-            else SetColor(i => Color.Lerp(baseColors[i], new Color(1f, 0.2f, 0.15f), 0.8f));
+            if (flashTimer <= 0) ClearColor();
+            else SetColor(c => Color.Lerp(c, new Color(1f, 0.2f, 0.15f), 0.8f));
         }
     }
 
-    void SetColor(System.Func<int, Color> pick)
+    /// <summary>원래 색에서 바꾼 색을 재질마다 따로 적용</summary>
+    void SetColor(System.Func<Color, Color> change)
     {
         for (int i = 0; i < renderers.Length; i++)
         {
-            renderers[i].GetPropertyBlock(mpb);
-            mpb.SetColor(BaseColorId, pick(i));
-            renderers[i].SetPropertyBlock(mpb);
+            if (renderers[i] == null) continue;
+            for (int k = 0; k < baseColors[i].Length; k++)
+            {
+                mpb.Clear();
+                mpb.SetColor(BaseColorId, change(baseColors[i][k]));
+                renderers[i].SetPropertyBlock(mpb, k);
+            }
+        }
+    }
+
+    void ClearColor()
+    {
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] == null) continue;
+            for (int k = 0; k < baseColors[i].Length; k++) renderers[i].SetPropertyBlock(null, k);
         }
     }
 

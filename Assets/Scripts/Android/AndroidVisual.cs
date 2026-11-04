@@ -9,7 +9,13 @@ using UnityEngine.AI;
 /// </summary>
 public class AndroidVisual : MonoBehaviour
 {
+    public float modelYawOffset = 0f;
+
     Transform model, hipL, hipR, armL, armR, head, torso;
+    CharacterAnimator anim;
+
+    /// <summary>에셋 모델(애니메이션 있음)을 쓰는 중인가</summary>
+    public bool Animated { get; private set; }
     NavMeshAgent agent;
     AndroidAI ai;
     Damageable body;
@@ -32,9 +38,69 @@ public class AndroidVisual : MonoBehaviour
         // 기존 캡슐/바이저 렌더러 숨기기
         foreach (var r in GetComponentsInChildren<Renderer>()) r.enabled = false;
 
-        Build();
+        Animated = TryBuildAsset();
+        if (!Animated) Build();
         lastPos = transform.position;
     }
+
+    // ================= 에셋 모델 (Quaternius Animated Robot) =================
+
+    bool TryBuildAsset()
+    {
+        const string path = "Quaternius/Robot";
+        if (!AssetLib.Has(path)) return false;
+
+        // 부모(캡슐)는 중심이 지면 위 1.1m, 크기 1.1배 → 발바닥 기준·실제 미터 단위 공간을 만든다
+        float s = Mathf.Max(0.01f, transform.lossyScale.y);
+        var space = Kit.Group(transform, "ModelSpace", new Vector3(0, -1.1f / s, 0));
+        space.localScale = Vector3.one / s;
+
+        var t = AssetLib.Spawn(path, space, Vector3.zero, modelYawOffset, AssetLib.Fit.Height, new Vector3(0, 2.2f, 0),
+            false, false, "Model");
+        if (t == null) { Destroy(space.gameObject); return false; }
+
+        var animator = t.GetComponentInChildren<Animator>();
+        if (animator == null) animator = t.GetChild(0).gameObject.AddComponent<Animator>();
+        anim = t.gameObject.AddComponent<CharacterAnimator>();
+        anim.walkReference = 1.5f;
+        anim.runReference = 3.6f;
+        bool ok = anim.Init(animator, AssetLib.Clips(path),
+            new System.Collections.Generic.Dictionary<CharacterAnimator.Slot, string[]>
+            {
+                { CharacterAnimator.Slot.Idle, new[] { "idle", "standing" } },
+                { CharacterAnimator.Slot.Walk, new[] { "walking", "walk" } },
+                { CharacterAnimator.Slot.Run, new[] { "running", "run" } },
+                { CharacterAnimator.Slot.Attack, new[] { "punch", "attack" } },
+                { CharacterAnimator.Slot.Death, new[] { "death", "die" } },
+            },
+            new[] { "jump", "dance", "wave", "thumb", "sitting" });
+        if (!ok) { Destroy(space.gameObject); return false; }
+        model = space;
+
+        // 색: 컨셉 아트 기준 흰 외장 + 회색 관절 + 빨간 눈.
+        // 채도 높은 몸체 색 → 흰색, 밝은 하늘/파랑/초록(눈·조명) → 빨간 발광, 어두운 색은 그대로
+        foreach (var r in t.GetComponentsInChildren<Renderer>())
+        {
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null) continue;
+                Color c = AssetLib.BaseColor(mats[i]);
+                Color.RGBToHSV(c, out float h, out float sat, out float v);
+                string n = mats[i].name.ToLowerInvariant();
+                Debug.Log($"[Gumi] 로봇 재질 {mats[i].name}: #{ColorUtility.ToHtmlStringRGB(c)}");
+                bool eye = n.Contains("eye") || n.Contains("light") || n.Contains("emiss") || (sat > 0.4f && v > 0.6f && h > 0.42f && h < 0.72f);
+                if (eye) mats[i] = AssetLib.Recolor(mats[i], Kit.Visor, 3f);
+                else if (sat > 0.35f) mats[i] = AssetLib.Recolor(mats[i], Kit.Hex("E9ECEF"));
+                else if (v > 0.35f && v < 0.8f) mats[i] = AssetLib.Recolor(mats[i], Kit.Hex("5E6E80"));
+            }
+            r.sharedMaterials = mats;
+        }
+        return true;
+    }
+
+    public void PlayAttack() { if (Animated) anim.PlayAttack(1.3f); }
+    public void PlayDeath() { if (Animated) anim.PlayDeath(); }
 
     void Build()
     {
@@ -107,6 +173,16 @@ public class AndroidVisual : MonoBehaviour
         Vector3 delta = transform.position - lastPos; delta.y = 0;
         lastPos = transform.position;
         float speed = Time.deltaTime > 0 ? delta.magnitude / Time.deltaTime : 0f;
+
+        if (Animated)
+        {
+            bool dazed = ai != null && ai.IsStunned;
+            anim.SetMovement(dazed ? 0f : speed, dazed ? 0.2f : 1f);
+            // 기절하면 휘청거린다
+            model.localRotation = Quaternion.Slerp(model.localRotation,
+                dazed ? Quaternion.Euler(12f, 0, Mathf.Sin(Time.time * 7f) * 6f) : Quaternion.identity, 8f * Time.deltaTime);
+            return;
+        }
         float amount = Mathf.Clamp01(speed / 1.6f);
 
         phase += Time.deltaTime * (3f + speed * 1.6f);

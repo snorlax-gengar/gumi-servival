@@ -9,7 +9,12 @@ using UnityEngine;
 /// </summary>
 public class PlayerVisual : MonoBehaviour
 {
+    [Tooltip("에셋 모델의 정면 보정 각도 (모델이 뒤를 보면 180)")]
+    public float modelYawOffset = 0f;
+
     Transform model, hipL, hipR, armL, armR, torso, hand;
+    CharacterAnimator anim;
+    bool animated;
     GameObject wrenchModel, pipeModel;
     PlayerController ctrl;
     PlayerStats stats;
@@ -40,8 +45,101 @@ public class PlayerVisual : MonoBehaviour
         foreach (var r in GetComponentsInChildren<Renderer>())
             if (r.name == "Body" || r.name == "Nose") r.enabled = false;
 
-        Build();
+        animated = TryBuildAsset();
+        if (!animated) Build();
         lastPos = transform.position;
+    }
+
+    // ================= 에셋 모델 (Quaternius Worker_Male) =================
+
+    bool TryBuildAsset()
+    {
+        const string path = "Quaternius/Worker_Male";
+        var t = AssetLib.Spawn(path, transform, Vector3.zero, modelYawOffset, AssetLib.Fit.Height, new Vector3(0, 1.75f, 0),
+            false, false, "Model");
+        if (t == null) return false;
+
+        var animator = t.GetComponentInChildren<Animator>();
+        if (animator == null) animator = t.GetChild(0).gameObject.AddComponent<Animator>();
+        anim = t.gameObject.AddComponent<CharacterAnimator>();
+        anim.walkReference = 2.6f;
+        anim.runReference = 6.5f;
+        bool ok = anim.Init(animator, AssetLib.Clips(path),
+            new System.Collections.Generic.Dictionary<CharacterAnimator.Slot, string[]>
+            {
+                { CharacterAnimator.Slot.Idle, new[] { "idle" } },
+                { CharacterAnimator.Slot.Walk, new[] { "walk" } },
+                { CharacterAnimator.Slot.Run, new[] { "run" } },
+                { CharacterAnimator.Slot.Attack, new[] { "sword_slash", "slash", "punch", "attack" } },
+                { CharacterAnimator.Slot.Death, new[] { "death", "die" } },
+            },
+            new[] { "jump", "sword_idle", "idle_sword", "gun", "shoot" });
+        if (!ok)
+        {
+            Destroy(t.gameObject);
+            return false;
+        }
+        model = t;
+
+        // 색: 주황(루팅 전용 색)은 남색 작업복으로 바꾼다. 나머지는 원래 색 유지
+        foreach (var r in t.GetComponentsInChildren<Renderer>())
+        {
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null) continue;
+                Color c = AssetLib.BaseColor(mats[i]);
+                Color.RGBToHSV(c, out float h, out float sat, out float v);
+                Debug.Log($"[Gumi] 플레이어 재질 {mats[i].name}: #{ColorUtility.ToHtmlStringRGB(c)}");
+                if (sat > 0.45f && h > 0.02f && h < 0.12f) mats[i] = AssetLib.Recolor(mats[i], Kit.Hex("34456A"));
+            }
+            r.sharedMaterials = mats;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+        }
+
+        // 오른손에 무기 붙이기
+        hand = AssetLib.FindBone(t,
+            new[] { "hand", ".r" }, new[] { "hand", "_r" }, new[] { "hand", "right" },
+            new[] { "fist", ".r" }, new[] { "wrist", ".r" }, new[] { "lowerarm", ".r" }, new[] { "forearm", "r" });
+        Debug.Log($"[Gumi] 플레이어 오른손 뼈: {(hand ? hand.name : "없음")}");
+        if (hand != null) BuildWeapons(hand, true);
+        return true;
+    }
+
+    void BuildWeapons(Transform parent, bool compensateScale)
+    {
+        float inv = compensateScale ? 1f / Mathf.Max(1e-4f, parent.lossyScale.x) : 1f;
+        wrenchModel = new GameObject("렌치");
+        wrenchModel.transform.SetParent(parent, false);
+        wrenchModel.transform.localScale = Vector3.one * inv;
+        Kit.Box(wrenchModel.transform, new Vector3(0, 0, 0.18f), new Vector3(0.04f, 0.025f, 0.38f), Kit.Hex("A9AFB6"), name: "자루");
+        Kit.Box(wrenchModel.transform, new Vector3(0, 0, 0.4f), new Vector3(0.11f, 0.03f, 0.08f), Kit.Hex("9AA0A8"), name: "머리");
+        pipeModel = new GameObject("쇠파이프");
+        pipeModel.transform.SetParent(parent, false);
+        pipeModel.transform.localScale = Vector3.one * inv;
+        Kit.Cyl(pipeModel.transform, new Vector3(0, 0, 0.4f), new Vector3(0.06f, 0.95f, 0.06f), Kit.Hex("7A8088"),
+            rot: Quaternion.Euler(90, 0, 0), name: "파이프");
+        Kit.Box(pipeModel.transform, new Vector3(0, 0, 0.05f), new Vector3(0.075f, 0.075f, 0.14f), Kit.Hex("2E3135"), name: "테이프");
+    }
+
+    void AnimatedUpdate()
+    {
+        ItemData w = inv != null ? inv.EquippedWeapon : null;
+        bool isPipe = w != null && w.displayName.Contains("파이프");
+        if (wrenchModel != null) wrenchModel.SetActive(w != null && !isPipe);
+        if (pipeModel != null) pipeModel.SetActive(isPipe);
+
+        if (stats != null && stats.IsDead) { anim.PlayDeath(); return; }
+
+        Vector3 delta = transform.position - lastPos; delta.y = 0;
+        lastPos = transform.position;
+        float speed = Time.deltaTime > 0 ? delta.magnitude / Time.deltaTime : 0f;
+
+        // 웅크리기: 동작을 느리게 하고 몸을 낮춘다 (전용 동작이 없어서 자세로 표현)
+        crouch = Mathf.MoveTowards(crouch, ctrl != null && ctrl.IsCrouching ? 1f : 0f, 5f * Time.deltaTime);
+        anim.SetMovement(speed, Mathf.Lerp(1f, 0.75f, crouch));
+        model.localPosition = new Vector3(0, -0.06f * crouch, 0);
+        model.localRotation = Quaternion.Euler(18f * crouch, modelYawOffset, 0);
     }
 
     void Build()
@@ -120,10 +218,16 @@ public class PlayerVisual : MonoBehaviour
     }
 
     /// <summary>PlayerCombat이 공격할 때 부른다</summary>
-    public void TriggerSwing() => swingT = 0f;
+    public void TriggerSwing()
+    {
+        if (animated) anim.PlayAttack(1.6f);
+        else swingT = 0f;
+    }
 
     void LateUpdate()
     {
+        if (animated) { AnimatedUpdate(); return; }
+
         bool dead = stats != null && stats.IsDead;
 
         // 무기 표시

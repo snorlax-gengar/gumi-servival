@@ -163,8 +163,8 @@ public class CityGenerator : MonoBehaviour
                 bool south = j < (nz + 1) / 2;          // 남쪽 절반은 남쪽 도로, 북쪽 절반은 북쪽 도로를 본다
                 float yaw = south ? 0f : 180f;
                 var pos = new Vector3(cx, 0.1f, cz);
-                if (Chance(0.25f)) BuildingKit.Shop(p, pos, yaw, w, d, RI(1, 3), rng);
-                else BuildingKit.Oneroom(p, pos, yaw, w, d, RI(2, 4), rng);
+                if (Chance(0.72f)) Kenney(p, Pick(Commercial), pos, yaw, w, d, () => BuildingKit.Oneroom(p, pos, yaw, w, d, RI(2, 4), rng));
+                else Kenney(p, Pick(Suburban), pos, yaw, w, d, () => BuildingKit.Shop(p, pos, yaw, w, d, RI(1, 3), rng));
 
                 // 건물 앞에 쓰레기통이나 택배상자
                 float fz = south ? cz - d / 2 - 0.8f : cz + d / 2 + 0.8f;
@@ -199,7 +199,9 @@ public class CityGenerator : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             float d = R(8f, 11f);
-            BuildingKit.Shop(p, new Vector3(x0 + 1 + w * i + w / 2, 0.1f, z0 + S - d / 2 - 1), 180f, w - 2, d, RI(1, 4), rng);
+            var sp = new Vector3(x0 + 1 + w * i + w / 2, 0.1f, z0 + S - d / 2 - 1);
+            float sw2 = w - 2, sd2 = d;
+            Kenney(p, Pick(Commercial), sp, 180f, sw2, sd2, () => BuildingKit.Shop(p, sp, 180f, sw2, sd2, RI(1, 4), rng));
         }
     }
 
@@ -211,7 +213,9 @@ public class CityGenerator : MonoBehaviour
             float w = R(22f, 28f), d = R(8f, 10f);
             int floors = RI(6, 11);
             float cz = z0 + (k == 0 ? S * 0.28f : S * 0.75f);
-            BuildingKit.Apartment(p, new Vector3(x0 + S / 2, 0.1f, cz), 0f, w, d, floors, 101 + (apartmentCount++), rng);
+            var ap = new Vector3(x0 + S / 2, 0.1f, cz);
+            int num = 101 + (apartmentCount++);
+            Kenney(p, Pick(Skyscrapers), ap, 0f, w, d, () => BuildingKit.Apartment(p, ap, 0f, w, d, floors, num, rng));
             Container(p, "택배 보관함", new Vector3(x0 + S / 2 + R(-6, 6), 0.6f, cz - d / 2 - 0.8f), new Vector3(1.6f, 1.2f, 0.6f),
                 (ramen, 0.6f, 2), (water, 0.5f, 2), (bandage, 0.4f, 1));
         }
@@ -232,6 +236,14 @@ public class CityGenerator : MonoBehaviour
         for (int i = 0; i < trees; i++)
         {
             float x = x0 + R(2, S - 2), z = z0 + R(2, S - 2);
+            var kt = AssetLib.Spawn(Chance(0.6f) ? "Kenney/Suburban/tree-large" : "Kenney/Suburban/tree-small", p, new Vector3(x, 0.1f, z),
+                R(0, 360), AssetLib.Fit.Height, new Vector3(0, R(4.5f, 7.5f), 0), false, false, "나무");
+            if (kt != null)
+            {
+                var trunkCol = Kit.Box(kt, new Vector3(0, 1.2f, 0), new Vector3(0.4f, 2.4f, 0.4f), Color.gray, true, name: "줄기충돌");
+                trunkCol.GetComponent<Renderer>().enabled = false;
+                continue;
+            }
             var tree = Kit.Group(p, "나무", new Vector3(x, 0.1f, z), Quaternion.Euler(0, R(0, 360), 0));
             Kit.Box(tree, new Vector3(0, 1.4f, 0), new Vector3(0.4f, 2.8f, 0.4f), Kit.Hex("5A4636"), true, name: "줄기");
             float cs = R(2.4f, 3.6f);
@@ -248,22 +260,44 @@ public class CityGenerator : MonoBehaviour
         // 큰 공장동 (문 두 개) + 내부 자재
         float w = S - R(4f, 8f), d = S - R(8f, 12f), h = R(7f, 10f);
         float cx = x0 + S / 2, cz = z0 + d / 2 + 2f;
-        var factory = Hollow(p, "공장", cx, cz, w, d, h, factoryMat, 4f, true);
-        BuildingKit.FactoryDetails(factory, cx, cz, w, d, h, 4f, 1 + (factoryCount++), rng);
+        bool kenneyFactory = AssetLib.Spawn(Pick(Industrial), p, new Vector3(cx, 0.1f, cz), AssetLib.KenneyFrontYaw,
+            AssetLib.Fit.Footprint, new Vector3(w, 0, d), true, true, "공장") != null;
+        if (kenneyFactory)
+        {
+            factoryCount++;
+            if (Chance(0.6f)) AssetLib.Spawn(Pick(Chimneys), p, new Vector3(cx + w / 2 - 2.5f, 0.1f, cz + d / 2 + 2.5f), 0,
+                AssetLib.Fit.Height, new Vector3(0, R(12f, 18f), 0), true, true, "굴뚝");
+            if (Chance(0.5f)) AssetLib.Spawn(Chance(0.5f) ? "Kenney/Industrial/detail-tank-large" : "Kenney/Industrial/water-tower", p,
+                new Vector3(cx + R(-w / 3, 0), 0.1f, cz + d / 2 + 3f), 0, AssetLib.Fit.Height, new Vector3(0, R(5f, 9f), 0), true, true, "탱크");
+        }
+        else
+        {
+            var factory = Hollow(p, "공장", cx, cz, w, d, h, factoryMat, 4f, true);
+            BuildingKit.FactoryDetails(factory, cx, cz, w, d, h, 4f, 1 + (factoryCount++), rng);
+        }
         int boxes = RI(1, 4);
         for (int i = 0; i < boxes; i++)
         {
-            var c = BuildingKit.Container(p, new Vector3(cx - w / 2 + 4f + i * 7f, 0.1f, cz + d / 2 + 3.6f), 90f, rng);
-            if (Chance(0.4f)) BuildingKit.Container(c, new Vector3(0, 2.6f, 0), 0f, rng, true);
+            var cpos = new Vector3(cx - w / 2 + 4f + i * 7f, 0.1f, cz + d / 2 + 3.6f);
+            var kc = AssetLib.Spawn(Pick(Containers), p, cpos, 90f, AssetLib.Fit.Footprint, new Vector3(2.6f, 0, 6.2f), true, false, "컨테이너");
+            if (kc == null)
+            {
+                var c = BuildingKit.Container(p, cpos, 90f, rng);
+                if (Chance(0.4f)) BuildingKit.Container(c, new Vector3(0, 2.6f, 0), 0f, rng, true);
+            }
         }
 
-        Container(p, "공구함", new Vector3(cx - w / 2 + 1.5f, 0.5f, cz + d / 2 - 1.2f), new Vector3(1.4f, 1f, 0.7f),
+        float lootZ = kenneyFactory ? cz - d / 2 - 1.4f : cz + d / 2 - 1.2f;
+        Container(p, "공구함", new Vector3(cx - w / 3, 0.5f, lootZ), new Vector3(1.4f, 1f, 0.7f),
             (wrench, 0.5f, 1), (pipe, 0.4f, 1), (bandage, 0.3f, 1));
-        Container(p, "고철더미", new Vector3(cx + R(-w / 4, w / 4), 0.5f, cz + R(-d / 4, d / 4)), new Vector3(2f, 1f, 1.5f),
+        Container(p, "고철더미", new Vector3(cx + R(0, w / 3), 0.5f, kenneyFactory ? lootZ : cz + R(-d / 4, d / 4)), new Vector3(2f, 1f, 1.5f),
             (pipe, 0.6f, 1));
-        int crates = RI(3, 7);
-        for (int i = 0; i < crates; i++)
-            Box("자재", p, new Vector3(cx + R(-w / 2 + 2, w / 2 - 2), 0.75f, cz + R(-d / 2 + 2, d / 2 - 2)), new Vector3(R(1.5f, 3f), 1.5f, R(1.5f, 3f)), shelfMat);
+        if (!kenneyFactory)
+        {
+            int crates = RI(3, 7);
+            for (int i = 0; i < crates; i++)
+                Box("자재", p, new Vector3(cx + R(-w / 2 + 2, w / 2 - 2), 0.75f, cz + R(-d / 2 + 2, d / 2 - 2)), new Vector3(R(1.5f, 3f), 1.5f, R(1.5f, 3f)), shelfMat);
+        }
 
         // 뒤편 야적장
         Container(p, "부품 상자", new Vector3(x0 + R(3, S - 3), 0.5f, z0 + S - 1.5f), new Vector3(1.5f, 1f, 1f),
@@ -495,6 +529,81 @@ public class CityGenerator : MonoBehaviour
     bool InHorizontalRoad(float z) { for (int j = 0; j <= blocksZ; j++) if (Mathf.Abs(z - RoadCenter(j)) < roadWidth / 2 + 0.5f) return true; return false; }
     bool InVerticalRoad(float x) { for (int i = 0; i <= blocksX; i++) if (Mathf.Abs(x - RoadCenter(i)) < roadWidth / 2 + 0.5f) return true; return false; }
 
+    // ================= Kenney 에셋 =================
+
+    static readonly string[] Commercial = Names("Kenney/Commercial/building-", "abcdefghijklmn");
+    static readonly string[] Skyscrapers = Names("Kenney/Commercial/building-skyscraper-", "abcde");
+    static readonly string[] Suburban = Names("Kenney/Suburban/building-type-", "abcdefghijklmnopqrstu");
+    static readonly string[] Industrial = Names("Kenney/Industrial/building-", "abcdefghijklmnopqrst");
+    static readonly string[] Chimneys = { "Kenney/Industrial/chimney-large", "Kenney/Industrial/chimney-medium", "Kenney/Industrial/chimney-basic" };
+    static readonly string[] Containers = { "Kenney/Industrial/shipping-container-a", "Kenney/Industrial/shipping-container-b", "Kenney/Industrial/shipping-container-c" };
+
+    static string[] Names(string prefix, string letters)
+    {
+        var r = new string[letters.Length];
+        for (int i = 0; i < letters.Length; i++) r[i] = prefix + letters[i];
+        return r;
+    }
+
+    string Pick(string[] list) { return list[RI(0, list.Length)]; }
+
+    /// <summary>Kenney 건물을 필지에 맞춰 놓는다. 에셋이 없으면 fallback(코드 건물)을 쓴다.</summary>
+    void Kenney(Transform p, string path, Vector3 pos, float yaw, float w, float d, System.Action fallback)
+    {
+        var t = AssetLib.Spawn(path, p, pos, yaw + AssetLib.KenneyFrontYaw, AssetLib.Fit.Footprint, new Vector3(w, 0, d), true, true);
+        if (t == null) fallback();
+    }
+
+    void AddStreetLamp(Transform parent, Vector3 worldPos)
+    {
+        var go = new GameObject("가로등 불빛");
+        go.transform.SetParent(parent, true);
+        go.transform.position = worldPos;
+        var l = go.AddComponent<Light>();
+        l.type = LightType.Point;
+        l.color = Kit.WarmLight;
+        l.range = 13f;
+        l.intensity = 3f;
+        l.shadows = LightShadows.None;
+        l.enabled = false;
+        NightLights.Register(l);
+    }
+
+    void BuildProps(Transform streets)
+    {
+        // 신호등 + 공사 구간
+        for (int i = 0; i <= blocksX; i++)
+            for (int j = 0; j <= blocksZ; j++)
+            {
+                float cx = RoadCenter(i), cz = RoadCenter(j);
+                if (Chance(0.25f))
+                    AssetLib.Spawn("Kenney/Roads/traffic-light", streets, new Vector3(cx - roadWidth / 2 + 0.4f, 0, cz - roadWidth / 2 + 0.4f),
+                        AssetLib.KenneyFrontYaw, AssetLib.Fit.Height, new Vector3(0, 5f, 0), true, false, "신호등");
+                if (Chance(0.12f))
+                {
+                    Vector3 c = new Vector3(cx + 1.5f, 0, cz + roadWidth / 2 + R(5f, 15f));
+                    if (c.z < TotalZ - 8f)
+                        for (int k = 0; k < 4; k++)
+                            AssetLib.Spawn(k % 2 == 0 ? "Kenney/Roads/construction-cone" : "Kenney/Roads/construction-barrier", streets,
+                                c + new Vector3(0, 0, k * 1.6f), 90f, AssetLib.Fit.Height, new Vector3(0, k % 2 == 0 ? 0.8f : 1.1f, 0), true, false, "공사");
+                }
+            }
+
+        // 블록 앞 인도의 쓰레기 수거함 (뒤질 수 있음)
+        for (int x = 0; x < blocksX; x++)
+            for (int z = 0; z < blocksZ; z++)
+            {
+                if (map[x, z] == BlockType.Park || !Chance(0.6f)) continue;
+                Vector3 pos = new Vector3(Origin(x) + R(2f, blockSize - 2f), 0.1f, Origin(z) + 0.9f);
+                var dm = AssetLib.Spawn("Kenney/Roads/dumpster", streets, pos, AssetLib.KenneyFrontYaw, AssetLib.Fit.Footprint,
+                    new Vector3(2.0f, 0, 1.2f), true, false, "쓰레기 수거함");
+                if (dm == null) continue;
+                AddLoot(dm.gameObject, "쓰레기 수거함", (water, 0.3f, 1), (kimbap, 0.25f, 1), (pipe, 0.1f, 1), (bandage, 0.2f, 1));
+                Bounds b = AssetLib.LocalBounds(dm);
+                Kit.Box(dm, new Vector3(b.center.x, b.max.y + 0.02f, b.center.z), new Vector3(b.size.x * 0.9f, 0.05f, 0.25f), Kit.Loot, name: "주황 띠");
+            }
+    }
+
     void BuildStreets()
     {
         var streets = new GameObject("거리").transform;
@@ -535,7 +644,8 @@ public class CityGenerator : MonoBehaviour
             {
                 if (InHorizontalRoad(z)) { prev = null; continue; }
                 var pos = new Vector3(x, 0, z);
-                BuildingKit.UtilityPole(streets, pos, 90f, Chance(0.25f));
+                if (AssetLib.Spawn("Kenney/Roads/electricity-pole", streets, pos, 90f, AssetLib.Fit.Height, new Vector3(0, 9f, 0), true, false, "전봇대") == null)
+                    BuildingKit.UtilityPole(streets, pos, 90f, Chance(0.25f));
                 if (prev.HasValue) BuildingKit.Wires(streets, prev.Value, pos);
                 prev = pos;
             }
@@ -549,9 +659,14 @@ public class CityGenerator : MonoBehaviour
             for (float x = 14f; x < TotalX - 6f; x += 28f)
             {
                 if (InVerticalRoad(x)) x += roadWidth;
-                BuildingKit.StreetLight(streets, new Vector3(x, 0, z), 180f);
+                var lp = new Vector3(x, 0, z);
+                var lt = AssetLib.Spawn("Kenney/Roads/light-curved", streets, lp, 180f + AssetLib.KenneyFrontYaw, AssetLib.Fit.Height, new Vector3(0, 6.5f, 0), true, false, "가로등");
+                if (lt != null) AddStreetLamp(lt, new Vector3(lp.x, 5.9f, lp.z - 1.4f));
+                else BuildingKit.StreetLight(streets, lp, 180f);
             }
         }
+
+        BuildProps(streets);
     }
 
     void WallWithDoor(Transform g, float cx, float z, float w, float h, Material m, float door)

@@ -14,12 +14,23 @@ public class AndroidSalvage : MonoBehaviour, IInteractable
 
     bool done;
     GameObject marker;
+    Vector3 basePos;
+
+    void Update()
+    {
+        // 쓰러진 자리 위에 주황 마름모가 떠서 돈다
+        if (marker == null) return;
+        marker.transform.position = basePos + Vector3.up * Mathf.Sin(Time.time * 2.5f) * 0.12f;
+        marker.transform.rotation = Quaternion.Euler(45f, Time.time * 90f, 45f);
+    }
 
     public void Init(int amount)
     {
         parts = amount;
-        // 뒤질 수 있는 것 = 주황. 엎드려 쓰러지므로 위를 보는 등(충전구 자리)에 주황 불빛을 켠다
-        marker = Kit.Box(transform, new Vector3(0, 0.15f, -0.42f), new Vector3(0.35f, 0.35f, 0.12f), Kit.Loot, emission: 1.8f, name: "분해 표시").gameObject;
+        // 뒤질 수 있는 것 = 주황. 쓰러진 자리 위에 주황 표시를 띄운다
+        marker = Kit.Box(transform, Vector3.zero, Vector3.one * 0.3f, Kit.Loot, emission: 1.8f, name: "분해 표시").gameObject;
+        marker.transform.localScale = Vector3.one * (0.3f / Mathf.Max(0.01f, transform.lossyScale.x));
+        basePos = new Vector3(transform.position.x, 1.2f, transform.position.z);
         Destroy(gameObject, despawnSeconds);
     }
 

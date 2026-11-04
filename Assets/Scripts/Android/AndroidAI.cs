@@ -58,6 +58,7 @@ public class AndroidAI : MonoBehaviour
     bool hasPendingNoise;
 
     public bool IsStunned => stunTimer > 0;
+    AndroidVisual visual;
 
     /// <summary>이 위치에서 공격하면 기습이 되는가 (나를 못 알아챘고, 등 뒤에서)</summary>
     public bool CanBeAmbushedFrom(Vector3 attackerPos)
@@ -90,7 +91,8 @@ public class AndroidAI : MonoBehaviour
         waitTimer = Random.Range(0f, waitAtPoint * 2f);
         wpIndex = waypoints != null && waypoints.Length > 0 ? Random.Range(0, waypoints.Length) : 0;
         // 모델을 먼저 만들어야 피격 연출(AndroidFeedback)이 모델의 렌더러를 잡는다
-        if (GetComponent<AndroidVisual>() == null) gameObject.AddComponent<AndroidVisual>();
+        visual = GetComponent<AndroidVisual>();
+        if (visual == null) visual = gameObject.AddComponent<AndroidVisual>();
         if (GetComponent<AndroidFeedback>() == null) gameObject.AddComponent<AndroidFeedback>();
 
         // 전용 레이어: 미니맵에 그대로 보이지 않게 하고, 카메라 가림 처리에서도 제외
@@ -249,6 +251,7 @@ public class AndroidAI : MonoBehaviour
             {
                 attackTimer = attackCooldown;
                 playerStats?.TakeDamage(attackDamage);
+                if (visual != null) visual.PlayAttack();
                 NoiseSystem.Emit(transform.position, 6f);
             }
             return;
@@ -315,9 +318,13 @@ public class AndroidAI : MonoBehaviour
         CurrentState = State.Disabled;
         if (agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
         agent.enabled = false; // 에이전트가 위치를 다시 끌어올리지 않도록
-        // 쓰러짐: 옆으로 눕히고 바닥에 붙인다
-        transform.rotation = Quaternion.Euler(90f, transform.eulerAngles.y, 0);
-        transform.position = new Vector3(transform.position.x, 0.55f, transform.position.z);
+        if (visual != null && visual.Animated) visual.PlayDeath();   // 쓰러지는 동작
+        else
+        {
+            // 동작이 없는 모델: 옆으로 눕히고 바닥에 붙인다
+            transform.rotation = Quaternion.Euler(90f, transform.eulerAngles.y, 0);
+            transform.position = new Vector3(transform.position.x, 0.55f, transform.position.z);
+        }
         // 분해해서 부품을 얻을 수 있게 된다. 기습(기절 중)으로 쓰러뜨리면 부품이 더 많다
         int parts = Random.Range(4, 9) + (IsStunned ? 3 : 0);
         gameObject.AddComponent<AndroidSalvage>().Init(parts);
