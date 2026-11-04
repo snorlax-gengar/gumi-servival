@@ -39,6 +39,7 @@ public class MapRoad
     public string n;    // 도로명
     public int b, tu;   // 다리, 터널
     public float[] p;   // x,z,x,z...
+    public float[] wv;  // 꼭짓점별 폭 (건물에 닿는 구간은 좁힘). 없으면 w
 }
 
 [Serializable]

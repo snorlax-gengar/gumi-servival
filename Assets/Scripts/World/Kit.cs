@@ -137,9 +137,30 @@ public static class Kit
         tm.color = color;
         tm.text = text;
         var mr = go.GetComponent<MeshRenderer>();
-        mr.sharedMaterial = font.material;
+        mr.sharedMaterial = TextMaterial(font);
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         return tm;
+    }
+
+    static Material textMat;
+    static Font textMatFont;
+
+    /// <summary>깊이 검사를 하는 글씨 머티리얼 (벽 너머 글씨가 비치지 않게). 셰이더가 없으면 기본 글꼴 머티리얼.</summary>
+    public static Material TextMaterial(Font font)
+    {
+        if (textMat != null && textMatFont == font) return textMat;
+        var sh = Shader.Find("Gumi/TextDepth");
+        if (sh == null) return font.material;
+        textMat = new Material(sh) { name = "GumiText" };
+        textMat.mainTexture = font.material.mainTexture;
+        if (textMatFont == null) Font.textureRebuilt += OnFontRebuilt;
+        textMatFont = font;
+        return textMat;
+    }
+
+    static void OnFontRebuilt(Font f)
+    {
+        if (textMat != null && f == textMatFont) textMat.mainTexture = f.material.mainTexture;
     }
 
     /// <summary>바깥쪽 법선 n을 향한 면에 글씨를 붙일 때의 회전</summary>

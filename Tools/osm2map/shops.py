@@ -34,7 +34,7 @@ def addb(b):
 for b in m['buildings']: addb(b)
 sgrid = collections.defaultdict(list)
 for r in m['roads']:
-    if r['t'] in ('motorway', 'motorway_link', 'footway', 'path', 'steps', 'track') or r.get('tu'): continue
+    if r['t'] in ('path', 'steps', 'track') or r.get('tu'): continue
     P = pts(r['p'])
     for i in range(len(P) - 1):
         a, b = P[i], P[i + 1]
@@ -83,11 +83,22 @@ def nearest_road(x, z):
     for i in range(k[0] - 2, k[0] + 3):
         for j in range(k[1] - 2, k[1] + 3):
             for a, b, hw in sgrid.get((i, j), []):
+                if hw < 1.6: continue
                 d = seg_dist(x, z, a, b) - hw
                 if best is None or d < best[0]: best = (d, a, b, hw)
     return best
+agrid = collections.defaultdict(list)
+for ar in m['areas']:
+    if ar['k'] not in ('plaza', 'parking', 'water', 'pitch', 'railyard', 'platform', 'park', 'schoolyard'): continue
+    P = pts(ar['p']); xs = [q[0] for q in P]; zs = [q[1] for q in P]
+    for i in range(int(math.floor(min(xs) / CELL)), int(math.floor(max(xs) / CELL)) + 1):
+        for j in range(int(math.floor(min(zs) / CELL)), int(math.floor(max(zs) / CELL)) + 1):
+            agrid[(i, j)].append(P)
 def free(poly):
     cx = sum(q[0] for q in poly) / 4; cz = sum(q[1] for q in poly) / 4
+    for q in poly + [(cx, cz)]:
+        for P in agrid.get(ck(q[0], q[1]), []):
+            if inside(q, P): return False
     k = ck(cx, cz)
     for i in range(k[0] - 2, k[0] + 3):
         for j in range(k[1] - 2, k[1] + 3):

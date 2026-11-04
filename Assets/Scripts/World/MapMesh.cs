@@ -95,12 +95,20 @@ public class MeshBuilder
     /// <summary>
     /// 선을 따라가는 띠 (도로, 하천, 차선). offset은 진행 방향 왼쪽으로 미는 거리.
     /// </summary>
-    public void Strip(int sub, IList<Vector2> p, float halfW, float y, Vector3 origin, float offset = 0f)
+    public void Strip(int sub, IList<Vector2> p, float halfW, float y, Vector3 origin, float offset = 0f,
+        IList<float> halfWs = null, IList<float> offsets = null)
     {
-        // 너무 가까운 점은 건너뛴다
+        // 너무 가까운 점은 건너뛴다 (꼭짓점별 폭/오프셋도 같이)
         var pts = new List<Vector2>(p.Count);
+        var hws = new List<float>(p.Count);
+        var offs = new List<float>(p.Count);
         for (int i = 0; i < p.Count; i++)
-            if (pts.Count == 0 || (p[i] - pts[pts.Count - 1]).sqrMagnitude > 0.01f) pts.Add(p[i]);
+            if (pts.Count == 0 || (p[i] - pts[pts.Count - 1]).sqrMagnitude > 0.01f)
+            {
+                pts.Add(p[i]);
+                hws.Add(halfWs != null && i < halfWs.Count ? halfWs[i] : halfW);
+                offs.Add(offsets != null && i < offsets.Count ? offsets[i] : offset);
+            }
         if (pts.Count < 2) return;
 
         float dist = 0f;
@@ -115,9 +123,9 @@ public class MeshBuilder
             float scale = 1f / Mathf.Max(Vector2.Dot(miter, nNext), 0.4f);
             if (i > 0) dist += (pts[i] - pts[i - 1]).magnitude;
 
-            Vector2 l = pts[i] + miter * (offset + halfW) * scale;
-            Vector2 r = pts[i] + miter * (offset - halfW) * scale;
-            float v = dist / Mathf.Max(0.5f, halfW * 2f);
+            Vector2 l = pts[i] + miter * (offs[i] + hws[i]) * scale;
+            Vector2 r = pts[i] + miter * (offs[i] - hws[i]) * scale;
+            float v = dist / Mathf.Max(0.5f, hws[i] * 2f);
             int il = V(new Vector3(l.x - origin.x, y, l.y - origin.z), Vector3.up, new Vector2(0, v));
             int ir = V(new Vector3(r.x - origin.x, y, r.y - origin.z), Vector3.up, new Vector2(1, v));
             if (prevL >= 0)

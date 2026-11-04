@@ -93,7 +93,8 @@ for e in el:
         if hw in ('platform', 'bus_stop', 'construction', 'proposed', 'elevator', 'corridor'): continue
         w = ROADW.get(hw, 5)
         lanes = t.get('lanes')
-        if lanes and lanes.isdigit() and hw not in ('footway', 'path'): w = max(w, int(lanes) * 3.2)
+        if lanes and lanes.isdigit() and hw not in ('footway', 'path'): w = max(int(lanes) * 3.0, 4)
+        elif t.get('oneway') == 'yes' and hw in ('primary', 'secondary', 'tertiary', 'trunk', 'unclassified', 'residential'): w *= 0.65
         if t.get('area') == 'yes' and closed(e):
             cp = clip_poly(ring(e))
             if len(cp) >= 3: areas.append({'k': 'plaza', 'n': '', 'p': flat(cp)})

@@ -5,7 +5,8 @@
    ```
    python osm2map.py gumi_core.json map.json        # 좌표 변환·도로·건물·면 정리
    python shops.py map.json gumi_shops.csv map_shops.json   # 소상공인 상가정보: 실제 상호·층수 (없는 건물은 새로 세움)
-   python fill.py map_shops.json map_full.json      # 지도에 없는 골목 빌라 채우기 + 거점 선택
+   python roadfit.py map_shops.json map_fit.json    # 건물에 닿는 도로 구간 폭 줄이기
+   python fill.py map_fit.json map_full.json        # 지도에 없는 골목 빌라 채우기 + 거점 선택
    python ground.py map_full.json out.json gumi_ground.png   # 바닥 텍스처 + 나무 위치
    ```
 3. `out.json`을 `Assets/Resources/Map/gumi_core.json`으로, `gumi_ground.png`를 같은 폴더에 둔다.

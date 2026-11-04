@@ -83,6 +83,14 @@ public partial class CityGenerator
         return l;
     }
 
+    /// <summary>도로 i~j 꼭짓점 구간의 반폭 (건물에 맞춰 좁힌 값 중 작은 쪽)</summary>
+    static float RoadHalfW(MapRoad r, int i, int j)
+    {
+        if (r.wv == null || r.wv.Length == 0) return r.w * 0.5f;
+        float a = i < r.wv.Length ? r.wv[i] : r.w, b = j < r.wv.Length ? r.wv[j] : r.w;
+        return Mathf.Min(a, b) * 0.5f;
+    }
+
     static bool Walkable(string t) => t != "motorway" && t != "motorway_link" && t != "path" && t != "footway" && t != "steps" && t != "track";
     static bool Major(string t) => t == "tertiary" || t == "secondary" || t == "primary" || t == "trunk" || t == "motorway" || t == "tertiary_link" || t == "secondary_link" || t == "motorway_link";
 
@@ -101,7 +109,7 @@ public partial class CityGenerator
                 if (L < 0.01f) continue;
                 if (r.w >= 3.5f)
                 {
-                    var s = new Seg { a = a, b = b, hw = r.w * 0.5f };
+                    var s = new Seg { a = a, b = b, hw = RoadHalfW(r, i, i + 1) };
                     int i0 = Cell(Mathf.Min(a.x, b.x), SegCell), i1 = Cell(Mathf.Max(a.x, b.x), SegCell);
                     int j0 = Cell(Mathf.Min(a.y, b.y), SegCell), j1 = Cell(Mathf.Max(a.y, b.y), SegCell);
                     for (int ci = i0; ci <= i1; ci++)
@@ -312,31 +320,44 @@ public partial class CityGenerator
             }
             if (r.t == "path") m = F_DIRT;
             var mb = FlatAt(p[0], out var o);
-            mb.Strip(m, p, hw, y, o);
-            mb.Disc(m, p[0], hw, y, o);
-            mb.Disc(m, p[p.Count - 1], hw, y, o);
+
+            // 꼭짓점별 반폭 (건물에 닿는 구간은 좁다)
+            var hws = new List<float>(p.Count);
+            float minHw = hw;
+            for (int i = 0; i < p.Count; i++)
+            {
+                float v = r.wv != null && i < r.wv.Length ? r.wv[i] * 0.5f : hw;
+                hws.Add(v);
+                minHw = Mathf.Min(minHw, v);
+            }
+            mb.Strip(m, p, hw, y, o, 0f, hws);
+            mb.Disc(m, p[0], hws[0], y, o);
+            mb.Disc(m, p[p.Count - 1], hws[hws.Count - 1], y, o);
 
             float ly = y + 0.004f;
+            var edgeL = new List<float>(p.Count);
+            var edgeR = new List<float>(p.Count);
+            foreach (var v in hws) { edgeL.Add(v - 0.4f); edgeR.Add(-v + 0.4f); }
             if (r.t == "motorway")
             {
-                mb.Strip(F_WHITE, p, 0.08f, ly, o, hw - 0.5f);
-                mb.Strip(F_WHITE, p, 0.08f, ly, o, -hw + 0.5f);
-                mb.Dashes(F_WHITE, p, 0.07f, ly, o, 4f, 6f, hw * 0.5f);
-                mb.Dashes(F_WHITE, p, 0.07f, ly, o, 4f, 6f, -hw * 0.5f);
+                mb.Strip(F_WHITE, p, 0.08f, ly, o, 0f, null, edgeL);
+                mb.Strip(F_WHITE, p, 0.08f, ly, o, 0f, null, edgeR);
+                mb.Dashes(F_WHITE, p, 0.07f, ly, o, 4f, 6f, minHw * 0.5f);
+                mb.Dashes(F_WHITE, p, 0.07f, ly, o, 4f, 6f, -minHw * 0.5f);
             }
-            else if (Major(r.t) && r.w >= 8f)
+            else if (Major(r.t) && r.w >= 7f)
             {
                 mb.Strip(F_YELLOW, p, 0.07f, ly, o, 0.16f);   // 중앙선 (황색 실선 두 줄)
                 mb.Strip(F_YELLOW, p, 0.07f, ly, o, -0.16f);
-                mb.Strip(F_WHITE, p, 0.08f, ly, o, hw - 0.4f);
-                mb.Strip(F_WHITE, p, 0.08f, ly, o, -hw + 0.4f);
-                if (r.w >= 11f)
+                mb.Strip(F_WHITE, p, 0.08f, ly, o, 0f, null, edgeL);
+                mb.Strip(F_WHITE, p, 0.08f, ly, o, 0f, null, edgeR);
+                if (minHw * 2f >= 11f)
                 {
-                    mb.Dashes(F_WHITE, p, 0.06f, ly, o, 3f, 5f, hw * 0.5f);
-                    mb.Dashes(F_WHITE, p, 0.06f, ly, o, 3f, 5f, -hw * 0.5f);
+                    mb.Dashes(F_WHITE, p, 0.06f, ly, o, 3f, 5f, minHw * 0.5f);
+                    mb.Dashes(F_WHITE, p, 0.06f, ly, o, 3f, 5f, -minHw * 0.5f);
                 }
             }
-            else if ((r.t == "residential" || r.t == "unclassified") && r.w >= 6f)
+            else if ((r.t == "residential" || r.t == "unclassified") && minHw * 2f >= 5.5f)
                 mb.Dashes(F_WHITE, p, 0.06f, ly, o, 3f, 4f);
         }
 
@@ -810,6 +831,7 @@ public partial class CityGenerator
                 float L = (b - a).magnitude;
                 if (L < 0.01f) continue;
                 Vector2 d = (b - a) / L, n = new Vector2(-d.y, d.x);
+                hw = RoadHalfW(r, i, i + 1);
                 while (true)
                 {
                     float next = Mathf.Min(major ? lampNext : float.MaxValue, alley ? poleNext : float.MaxValue, parkable ? carNext : float.MaxValue);
