@@ -73,6 +73,9 @@ public class PlayerCombat : MonoBehaviour
 
         var mouse = Mouse.current;
         if (mouse == null || !mouse.leftButton.wasPressedThisFrame || cooldown > 0) return;
+        // 인벤토리 버튼을 누른 클릭은 공격이 아니다
+        Vector2 mp = mouse.position.ReadValue();
+        if (HUD.InventoryScreenRect.Contains(new Vector2(mp.x, Screen.height - mp.y))) return;
 
         ItemData w = inv != null ? inv.EquippedWeapon : null;
         float dmg = w ? w.damage : fistDamage;
@@ -84,7 +87,12 @@ public class PlayerCombat : MonoBehaviour
 
         cooldown = w ? w.attackCooldown : fistCooldown;
         // 휘두르는 동안은 제자리 (쿨다운의 약 60%)
-        if (controller != null) controller.LockForAttack(cooldown * 0.6f);
+        // 좀보이드식: 휘두르는 순간 마우스 커서 쪽으로 몸을 돌린다
+        if (controller != null)
+        {
+            if (controller.MouseGroundPoint(out Vector3 aim)) controller.FaceTowards(aim);
+            controller.LockForAttack(cooldown * 0.6f);
+        }
         if (stats != null) stats.stamina -= cost;
         StartSwing(range);
         bool crouching = controller != null && controller.IsCrouching;

@@ -127,7 +127,7 @@ public class MinimapHUD : MonoBehaviour
 
         if (showHelp)
             GUI.Label(new Rect(UIScale.W - 820, UIScale.H - 30, 800, 24),
-                "WASD 이동 · Shift 달리기 · Ctrl 웅크리기 · F 뒤지기 · 좌클릭 공격(바라보는 방향) · Q/E·우클릭 드래그 카메라 · 휠 줌 · M 지도 · F9 녹화", small);
+                "WASD 이동 · Shift 달리기 · Ctrl 웅크리기 · F 뒤지기 · 좌클릭 공격(마우스 방향) · Q/E·우클릭 드래그 카메라 · 휠 줌 · M 지도 · F9 녹화", small);
     }
 
     void DrawMap(Rect r, RenderTexture rt)

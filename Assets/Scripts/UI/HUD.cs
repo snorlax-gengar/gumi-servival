@@ -10,6 +10,9 @@ public class HUD : MonoBehaviour
     static string message;
     static float messageTimer;
 
+    /// <summary>인벤토리 버튼이 차지하는 화면 영역 (위가 0인 픽셀 좌표)</summary>
+    public static Rect InventoryScreenRect;
+
     public static void ShowMessage(string msg, float seconds = 2.5f)
     {
         message = msg;
@@ -89,6 +92,9 @@ public class HUD : MonoBehaviour
         if (inv != null)
         {
             float iy = UIScale.H - 40 - inv.stacks.Count * 26;
+            // 인벤토리 버튼 영역(실제 화면 좌표) — 여기를 클릭하면 공격하지 않는다
+            float sc = UIScale.S;
+            InventoryScreenRect = new Rect(20 * sc, iy * sc, 300 * sc, Mathf.Max(0, inv.stacks.Count * 26) * sc);
             GUI.Label(new Rect(20, iy - 28, 400, 26),
                 $"가방 {inv.CurrentWeight:0.0} / {inv.maxWeight:0.0} kg   (숫자키로 사용/장착)", label);
             for (int i = 0; i < inv.stacks.Count; i++)

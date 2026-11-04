@@ -112,6 +112,27 @@ public class PlayerController : MonoBehaviour
 
     public bool IsAttacking => attackLock > 0f;
 
+    /// <summary>해당 지점을 즉시 바라본다 (마우스 조준 공격용)</summary>
+    public void FaceTowards(Vector3 worldPoint)
+    {
+        Vector3 dir = worldPoint - transform.position; dir.y = 0;
+        if (dir.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+    }
+
+    /// <summary>마우스 커서가 가리키는 땅 위 지점 (플레이어 발 높이 평면)</summary>
+    public bool MouseGroundPoint(out Vector3 point)
+    {
+        point = transform.position;
+        var mouse = Mouse.current;
+        Camera cam = Camera.main;
+        if (mouse == null || cam == null) return false;
+        Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+        var ground = new Plane(Vector3.up, transform.position);
+        if (!ground.Raycast(ray, out float enter)) return false;
+        point = ray.GetPoint(enter);
+        return true;
+    }
+
     [Header("회전")]
     public float turnSpeed = 720f;   // 초당 회전 각도
 
