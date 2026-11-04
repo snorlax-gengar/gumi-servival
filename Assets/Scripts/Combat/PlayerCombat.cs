@@ -20,9 +20,16 @@ public class PlayerCombat : MonoBehaviour
 
     public float hitAngle = 100f;  // 전방 판정 각도(도)
 
+    [Header("기습 (눈치 못 챈 안드로이드의 등 뒤)")]
+    public float ambushMultiplier = 2.5f;        // 서서 기습
+    public float crouchAmbushMultiplier = 4f;    // 웅크려서 기습 (렌치 25 x 4 = 100, 한 방)
+    public float ambushStun = 2f;                // 기습당한 안드로이드가 멈춰 있는 시간
+    public float ambushNoiseMultiplier = 0.4f;   // 기습은 소리가 작다
+
     float cooldown;
     Inventory inv;
     PlayerStats stats;
+    PlayerController controller;
     readonly Collider[] hits = new Collider[16];
 
     // 휘두르기 연출
@@ -35,6 +42,7 @@ public class PlayerCombat : MonoBehaviour
     {
         inv = GetComponent<Inventory>();
         stats = GetComponent<PlayerStats>();
+        controller = GetComponent<PlayerController>();
         BuildSwingVisual();
     }
 
@@ -76,8 +84,9 @@ public class PlayerCombat : MonoBehaviour
 
         cooldown = w ? w.attackCooldown : fistCooldown;
         if (stats != null) stats.stamina -= cost;
-        NoiseSystem.Emit(transform.position, noise);
         StartSwing(range);
+        bool crouching = controller != null && controller.IsCrouching;
+        bool anyAmbush = false;
 
         Vector3 center = transform.position + Vector3.up;
         int n = Physics.OverlapSphereNonAlloc(center, range + 0.5f, hits);
@@ -89,10 +98,24 @@ public class PlayerCombat : MonoBehaviour
             Vector3 to = d.transform.position - transform.position; to.y = 0;
             if (to.magnitude > range + 0.6f) continue;
             if (Vector3.Angle(transform.forward, to) > hitAngle * 0.5f) continue;
-            d.TakeDamage(dmg, transform.position);
+
+            float dealt = dmg;
+            var ai = d.GetComponent<AndroidAI>();
+            if (ai != null && ai.CanBeAmbushedFrom(transform.position))
+            {
+                dealt *= crouching ? crouchAmbushMultiplier : ambushMultiplier;
+                ai.Stun(ambushStun);   // 맞기 전에 멈춰 두어야 바로 돌아보지 않는다
+                anyAmbush = true;
+            }
+            d.TakeDamage(dealt, transform.position);
             hitSomething = true;
         }
-        if (!hitSomething) HUD.ShowMessage("빗나감", 0.4f);
+
+        // 소리는 휘두른 뒤에 퍼진다 (기습은 조용하다)
+        NoiseSystem.Emit(transform.position, anyAmbush ? noise * ambushNoiseMultiplier : noise);
+
+        if (anyAmbush) HUD.ShowMessage(crouching ? "기습! 급소를 노렸다" : "기습!", 1.5f);
+        else if (!hitSomething) HUD.ShowMessage("빗나감", 0.4f);
         else if (w == null) HUD.ShowMessage("맨손은 약하다. 무기를 찾자", 1.2f);
     }
 

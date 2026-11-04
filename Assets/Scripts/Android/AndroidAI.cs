@@ -32,6 +32,11 @@ public class AndroidAI : MonoBehaviour
     public float loseSightTime = 4f;
     public float investigateTime = 6f;
 
+    [Header("기습")]
+    public float ambushAngle = 110f;        // 등 뒤 판정: 정면에서 이 각도 이상 벗어나면 '뒤'
+    public float closeSenseWalk = 1.5f;     // 걷거나 뛰어서 다가오면 이 거리에서 기척을 느낌 (웅크리면 없음)
+    public Vector2 reactDelay = new Vector2(0.6f, 1.1f); // 소리를 듣고 돌아보기까지 멈칫하는 시간
+
     [Header("경보")]
     public float alertRadius = 16f;     // 발견 시 주변 안드로이드를 부르는 범위
     public float alertCooldown = 10f;
@@ -48,6 +53,27 @@ public class AndroidAI : MonoBehaviour
     int wpIndex;
     float waitTimer, attackTimer, lostTimer, investigateTimer, alertTimer;
     float lookYaw;
+    float stunTimer, reactTimer;
+    Vector3 pendingNoisePos;
+    bool hasPendingNoise;
+
+    public bool IsStunned => stunTimer > 0;
+
+    /// <summary>이 위치에서 공격하면 기습이 되는가 (나를 못 알아챘고, 등 뒤에서)</summary>
+    public bool CanBeAmbushedFrom(Vector3 attackerPos)
+    {
+        if (CurrentState == State.Chase || CurrentState == State.Disabled || IsStunned) return false;
+        Vector3 to = attackerPos - transform.position; to.y = 0;
+        return Vector3.Angle(transform.forward, to) > ambushAngle;
+    }
+
+    /// <summary>기습당해 잠시 멈춤. 끝나면 추적으로 전환.</summary>
+    public void Stun(float seconds)
+    {
+        stunTimer = Mathf.Max(stunTimer, seconds);
+        hasPendingNoise = false;
+        if (agent.enabled && agent.isOnNavMesh && agent.hasPath) agent.ResetPath();
+    }
     Vector3 lastKnownPos, homePos;
 
     void Awake()
@@ -109,6 +135,30 @@ public class AndroidAI : MonoBehaviour
         if (CurrentState == State.Disabled || !agent.enabled || !agent.isOnNavMesh) return;
         attackTimer -= Time.deltaTime;
         alertTimer -= Time.deltaTime;
+
+        if (stunTimer > 0)
+        {
+            stunTimer -= Time.deltaTime;
+            if (stunTimer <= 0)
+            {
+                // 정신을 차리면 마지막으로 맞은 방향으로 추적
+                CurrentState = State.Chase;
+                lostTimer = loseSightTime;
+                alertTimer = 0;
+            }
+            return;
+        }
+
+        // 소리를 들었으면 잠깐 멈칫한 뒤에 돌아본다 (이 사이에 기습 가능)
+        if (hasPendingNoise)
+        {
+            reactTimer -= Time.deltaTime;
+            if (reactTimer <= 0)
+            {
+                hasPendingNoise = false;
+                StartInvestigate(pendingNoisePos);
+            }
+        }
 
         bool sees = CanSeePlayer();
         if (sees)
@@ -226,8 +276,10 @@ public class AndroidAI : MonoBehaviour
         if (playerController != null && playerController.IsCrouching) range *= crouchViewMultiplier;
         if (dist > range) return false;
 
-        // 바로 옆(2m)은 각도와 관계없이 감지
-        if (dist > 2f && Vector3.Angle(transform.forward, new Vector3(dir.x, 0, dir.z)) > viewAngle * 0.5f)
+        // 바로 옆은 각도와 관계없이 기척을 느낀다. 단, 웅크리고 다가오면 느끼지 못함
+        bool crouching = playerController != null && playerController.IsCrouching;
+        float closeSense = crouching ? 0f : closeSenseWalk;
+        if (dist > closeSense && Vector3.Angle(transform.forward, new Vector3(dir.x, 0, dir.z)) > viewAngle * 0.5f)
             return false;
 
         if (Physics.Raycast(eye, dir.normalized, out RaycastHit hit, dist, obstacleMask, QueryTriggerInteraction.Ignore))
@@ -238,15 +290,20 @@ public class AndroidAI : MonoBehaviour
 
     void HearNoise(Vector3 pos, float radius)
     {
-        if (CurrentState == State.Disabled || CurrentState == State.Chase) return;
-        if (Vector3.Distance(transform.position, pos) <= radius * hearingMultiplier)
-            StartInvestigate(pos);
+        if (CurrentState == State.Disabled || CurrentState == State.Chase || IsStunned) return;
+        if (Vector3.Distance(transform.position, pos) > radius * hearingMultiplier) return;
+
+        if (CurrentState == State.Investigate) { StartInvestigate(pos); return; } // 이미 경계 중이면 즉시
+        pendingNoisePos = pos;
+        if (!hasPendingNoise) reactTimer = Random.Range(reactDelay.x, reactDelay.y);
+        hasPendingNoise = true;
     }
 
     void OnHit(Vector3 attackerPos)
     {
         if (CurrentState == State.Disabled) return;
         lastKnownPos = attackerPos;
+        if (IsStunned) return; // 기습으로 멈춘 동안은 추적 시작을 미룬다
         lostTimer = loseSightTime;
         CurrentState = State.Chase;
     }

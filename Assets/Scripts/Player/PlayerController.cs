@@ -17,7 +17,7 @@ public class PlayerController : MonoBehaviour
     [Header("소음 반경 (m)")]
     public float walkNoise = 6f;
     public float runNoise = 14f;
-    public float crouchNoise = 2f;
+    public float sneakNoise = 1.2f;   // 웅크려 걷기 (안드로이드 등 뒤로 다가갈 수 있을 만큼 조용)
     public float noiseInterval = 0.4f;
 
     [Header("참조")]
@@ -109,7 +109,7 @@ public class PlayerController : MonoBehaviour
         if (noiseTimer > 0) return;
         noiseTimer = noiseInterval;
 
-        float radius = IsCrouching ? crouchNoise : IsRunning ? runNoise : walkNoise;
+        float radius = IsCrouching ? sneakNoise : IsRunning ? runNoise : walkNoise;
         NoiseSystem.Emit(transform.position, radius);
     }
 }

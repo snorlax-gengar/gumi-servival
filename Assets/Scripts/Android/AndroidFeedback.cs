@@ -12,8 +12,14 @@ public class AndroidFeedback : MonoBehaviour
     public float knockback = 0.8f;
     public float barShowTime = 4f;
 
+    public float ambushHintRange = 3f;
+
     Damageable body;
     NavMeshAgent agent;
+    AndroidAI ai;
+    Transform player;
+    PlayerController playerCtrl;
+    GUIStyle hintStyle;
     Renderer[] renderers;
     MaterialPropertyBlock mpb;
     Color[] baseColors;
@@ -27,6 +33,9 @@ public class AndroidFeedback : MonoBehaviour
     {
         body = GetComponent<Damageable>();
         agent = GetComponent<NavMeshAgent>();
+        ai = GetComponent<AndroidAI>();
+        var p = GameObject.FindGameObjectWithTag("Player");
+        if (p != null) { player = p.transform; playerCtrl = p.GetComponent<PlayerController>(); }
         renderers = GetComponentsInChildren<Renderer>();
         mpb = new MaterialPropertyBlock();
         baseColors = new Color[renderers.Length];
@@ -97,14 +106,43 @@ public class AndroidFeedback : MonoBehaviour
 
     void OnGUI()
     {
-        if (body.IsDead || barTimer <= 0) return;
+        if (body.IsDead) return;
         Camera cam = Camera.main;
         if (cam == null) return;
+
+        // 머리 위 상태 표시: 기절 / 기습 가능
+        string hint = null;
+        Color hintColor = Color.white;
+        if (ai != null && ai.IsStunned) { hint = "기절"; hintColor = new Color(1f, 0.85f, 0.3f); }
+        else if (ai != null && player != null
+                 && Vector3.Distance(player.position, transform.position) < ambushHintRange
+                 && ai.CanBeAmbushedFrom(player.position))
+        {
+            bool crouch = playerCtrl != null && playerCtrl.IsCrouching;
+            hint = crouch ? "◆ 급소 노출" : "◆ 기습 가능";
+            hintColor = crouch ? new Color(0.4f, 1f, 0.5f) : new Color(0.75f, 1f, 0.75f);
+        }
+        if (hint == null && barTimer <= 0) return;
 
         Vector3 sp = cam.WorldToScreenPoint(transform.position + Vector3.up * 1.6f);
         if (sp.z < 0) return;
         UIScale.Apply();
         Vector2 gp = UIScale.FromScreen(sp);
+
+        if (hint != null)
+        {
+            if (hintStyle == null)
+            {
+                hintStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 14 };
+            }
+            GUI.color = new Color(0, 0, 0, 0.6f);
+            GUI.Label(new Rect(gp.x - 59, gp.y - 33, 120, 22), hint, hintStyle);
+            GUI.color = hintColor;
+            GUI.Label(new Rect(gp.x - 60, gp.y - 34, 120, 22), hint, hintStyle);
+            GUI.color = Color.white;
+        }
+        if (barTimer <= 0) return;
+
         const float w = 60, h = 7;
         var r = new Rect(gp.x - w / 2, gp.y - h, w, h);
         GUI.color = new Color(0, 0, 0, 0.6f);
