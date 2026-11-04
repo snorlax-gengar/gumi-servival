@@ -23,7 +23,16 @@ public static class GumiSceneBuilder
     {
         EditorApplication.delayCall += () =>
         {
+            // ▶를 누르면 어떤 씬이 열려 있든 도시 맵으로 시작
+            var city = AssetDatabase.LoadAssetAtPath<SceneAsset>(CityScenePath);
+            if (city != null) EditorSceneManager.playModeStartScene = city;
+
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+
+            // 빈 기본 씬이 열려 있으면 도시 맵을 열어 둔다
+            if (city != null && SceneManager.GetActiveScene().path.EndsWith("SampleScene.unity")
+                && !SceneManager.GetActiveScene().isDirty)
+                EditorSceneManager.OpenScene(CityScenePath);
             if (!EditorPrefs.GetBool(AutoRunKey, false))
             {
                 EditorPrefs.SetBool(AutoRunKey, true);
@@ -41,6 +50,13 @@ public static class GumiSceneBuilder
     /// 플레이할 때마다 새로 생성되는 도시 씬. 씬에는 플레이어·카메라·매니저와
     /// CityGenerator만 두고, 건물·물건·안드로이드는 런타임에 만들어진다.
     /// </summary>
+    [MenuItem("Gumi/도시 맵 열기")]
+    public static void OpenCity()
+    {
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(CityScenePath) != null) EditorSceneManager.OpenScene(CityScenePath);
+    }
+
     [MenuItem("Gumi/도시 맵 씬 만들기 (매번 새로 생성)")]
     public static void BuildCity()
     {
