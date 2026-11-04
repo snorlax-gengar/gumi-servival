@@ -37,6 +37,7 @@ public class PlayerController : MonoBehaviour
         cc = GetComponent<CharacterController>();
         stats = GetComponent<PlayerStats>();
         if (GetComponent<PlayerVisual>() == null) gameObject.AddComponent<PlayerVisual>();
+        if (GetComponent<Wallet>() == null) gameObject.AddComponent<Wallet>();
         if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
     }
 

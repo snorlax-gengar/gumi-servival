@@ -318,7 +318,10 @@ public class AndroidAI : MonoBehaviour
         // 쓰러짐: 옆으로 눕히고 바닥에 붙인다
         transform.rotation = Quaternion.Euler(90f, transform.eulerAngles.y, 0);
         transform.position = new Vector3(transform.position.x, 0.55f, transform.position.z);
-        HUD.ShowMessage("안드로이드 정지");
+        // 분해해서 부품을 얻을 수 있게 된다. 기습(기절 중)으로 쓰러뜨리면 부품이 더 많다
+        int parts = Random.Range(4, 9) + (IsStunned ? 3 : 0);
+        gameObject.AddComponent<AndroidSalvage>().Init(parts);
+        HUD.ShowMessage(IsStunned ? "안드로이드 정지 — 깔끔하게 쓰러뜨렸다 [F] 분해" : "안드로이드 정지 — [F]로 분해해 부품을 얻자", 3f);
     }
 
     // ---------- 전환 ----------

@@ -24,6 +24,12 @@ public class CityGenerator : MonoBehaviour
     public int baseAndroids = 8;
     public int androidsPerFactory = 3;
 
+    [Header("주기적 생성 (게임 시간 기준)")]
+    public float spawnIntervalHours = 2f;   // 낮 기준 출고 간격 (밤에는 절반)
+    public int maxAliveBase = 14;           // 1일차 최대 동시 개체 수
+    public int maxAlivePerDay = 4;          // 하루 지날 때마다 늘어나는 최대 수
+    public float minSpawnDistance = 45f;    // 플레이어 근처에는 생기지 않게
+
     [Header("머티리얼")]
     public Material groundMat, roadMat, buildingMat, apartmentMat, storeMat, factoryMat,
                     shelfMat, containerMat, treeMat, androidMat, visorMat;
@@ -37,6 +43,9 @@ public class CityGenerator : MonoBehaviour
     Transform root, androidRoot;
     BlockType[,] map;
     int apartmentCount, factoryCount;
+    readonly List<Vector3> factoryCenters = new List<Vector3>();
+    float spawnTimer;
+    int spawnSerial;
 
     float R(float a, float b) => a + (float)rng.NextDouble() * (b - a);
     int RI(int a, int bExclusive) => rng.Next(a, bExclusive);
@@ -295,7 +304,7 @@ public class CityGenerator : MonoBehaviour
         Vector3 pp = player ? player.transform.position : Vector3.zero;
 
         int factories = 0;
-        var factoryCenters = new List<Vector3>();
+        factoryCenters.Clear();
         for (int x = 0; x < blocksX; x++)
             for (int z = 0; z < blocksZ; z++)
                 if (map[x, z] == BlockType.Factory)
@@ -316,9 +325,67 @@ public class CityGenerator : MonoBehaviour
 
             var wps = new Vector3[RI(3, 6)];
             for (int i = 0; i < wps.Length; i++) wps[i] = RoadPointNear(pos, R(18f, 40f));
-            MakeAndroid($"작업형_안드로이드_{made + 1}", pos, wps);
+            MakeAndroid($"작업형_안드로이드_{++spawnSerial}", pos, wps);
             made++;
         }
+    }
+
+    // ================= 주기적 생성 =================
+
+    void Update()
+    {
+        var gm = GameManager.Instance;
+        if (gm == null) return;
+        float h = gm.HourOfDay;
+        bool night = h >= 18.5f || h < 6f;
+        spawnTimer += gm.GameHoursThisFrame;
+        if (spawnTimer < (night ? spawnIntervalHours * 0.5f : spawnIntervalHours)) return;
+        spawnTimer = 0f;
+        SpawnWave(gm.Day);
+    }
+
+    int AliveAndroids()
+    {
+        int n = 0;
+        foreach (var ai in androidRoot.GetComponentsInChildren<AndroidAI>())
+            if (ai.CurrentState != AndroidAI.State.Disabled) n++;
+        return n;
+    }
+
+    /// <summary>공장에서 새 안드로이드가 출고된다. 날이 갈수록 많이, 최대 수까지.</summary>
+    void SpawnWave(int day)
+    {
+        var player = GameObject.FindGameObjectWithTag("Player");
+        Vector3 pp = player ? player.transform.position : Vector3.zero;
+
+        int cap = maxAliveBase + (day - 1) * maxAlivePerDay;
+        int want = Mathf.Min(1 + day / 2, cap - AliveAndroids());
+        int made = 0;
+        for (int k = 0; k < want; k++)
+        {
+            Vector3 pos = Vector3.zero;
+            bool ok = false;
+            for (int t = 0; t < 20 && !ok; t++)
+            {
+                pos = factoryCenters.Count > 0 && Chance(0.8f)
+                    ? RoadPointNear(factoryCenters[RI(0, factoryCenters.Count)], 25f)
+                    : RandomRoadPoint();
+                ok = Vector3.Distance(pos, pp) >= minSpawnDistance;
+            }
+            if (!ok) continue;
+
+            // 공장 주변을 돌다가 시내 쪽으로도 한 번씩 내려온다
+            var wps = new Vector3[RI(3, 6)];
+            for (int i = 0; i < wps.Length; i++)
+                wps[i] = i == wps.Length - 1 ? RandomRoadPoint() : RoadPointNear(pos, R(18f, 40f));
+            MakeAndroid($"작업형_안드로이드_{++spawnSerial}", pos, wps);
+            made++;
+        }
+
+        if (made > 0)
+            HUD.ShowMessage(factoryCenters.Count > 0
+                ? "멀리 공단에서 사이렌이 울린다… 새 안드로이드가 출고됐다"
+                : "어딘가에서 안드로이드가 깨어났다", 3.5f);
     }
 
     Vector3 RandomRoadPoint()

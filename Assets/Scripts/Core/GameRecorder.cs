@@ -107,7 +107,7 @@ public class GameRecorder : MonoBehaviour
         float t = Time.unscaledTime - startTime;
         bool blink = Mathf.FloorToInt(t * 2) % 2 == 0;
         GUI.color = blink ? new Color(1f, 0.2f, 0.2f) : new Color(1f, 0.2f, 0.2f, 0.4f);
-        GUI.Label(new Rect(20, 125, 200, 24), $"● REC {frame / (float)fps:0}s");
+        GUI.Label(new Rect(20, 150, 200, 24), $"● REC {frame / (float)fps:0}s");
         GUI.color = Color.white;
     }
 }

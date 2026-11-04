@@ -22,6 +22,7 @@ public class HUD : MonoBehaviour
     PlayerStats stats;
     Inventory inv;
     Interactor interactor;
+    Wallet wallet;
     GUIStyle label, big, box, clockStyle;
     Texture2D white;
 
@@ -30,6 +31,7 @@ public class HUD : MonoBehaviour
         stats = GetComponent<PlayerStats>();
         inv = GetComponent<Inventory>();
         interactor = GetComponent<Interactor>();
+        wallet = GetComponent<Wallet>();
         if (GetComponent<GameRecorder>() == null) gameObject.AddComponent<GameRecorder>();
         white = Texture2D.whiteTexture;
     }
@@ -68,6 +70,16 @@ public class HUD : MonoBehaviour
         Bar(ref y, x, "배고픔", stats.hunger, new Color(0.9f, 0.6f, 0.2f));
         Bar(ref y, x, "갈증", stats.thirst, new Color(0.3f, 0.6f, 0.95f));
         Bar(ref y, x, "스태미나", stats.stamina, new Color(0.4f, 0.85f, 0.4f));
+
+        // --- 재화 ---
+        if (wallet != null)
+        {
+            GUI.color = Kit.Loot;
+            GUI.DrawTexture(new Rect(x + 2, y + 3, 12, 12), white);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(x + 22, y - 2, 200, 22), $"부품 {wallet.Parts}개", label);
+            y += 24;
+        }
 
         // --- 시계 ---
         if (GameManager.Instance != null)
