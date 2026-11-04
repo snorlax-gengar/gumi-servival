@@ -45,13 +45,6 @@ public partial class CityGenerator
     static long Key(int i, int j) => ((long)i << 32) ^ (uint)j;
     static int Cell(float v, float size) => Mathf.FloorToInt(v / size);
 
-    static readonly string[] FakeShops =
-    {
-        "24시 편의점", "바삭치킨", "구미약국", "공단부동산", "미래학원", "동네세탁소", "백반 · 국밥", "PC방",
-        "금오분식", "원평반찬", "휴대폰 성지", "안경나라", "헤어살롱", "코인노래방", "로봇 정비소", "배터리 교환소",
-        "드론 수리", "정육점", "생선구이", "순대국밥", "카페 2050", "중고 부품", "철물점", "인력사무소"
-    };
-
     // ================= 진입 =================
 
     bool TryBuildRealMap()
@@ -420,8 +413,19 @@ public partial class CityGenerator
             var style = StyleOf(b);
             int lv = Mathf.Max(1, b.lv);
             bool roofOnly = b.k == "roof";
-            bool store = style == Facade.Style.Shop || (style == Facade.Style.Villa && b.k == "gen" && lv >= 2 && lv <= 5 && hash % 10 < 4)
-                         || (style == Facade.Style.Office && hash % 10 < 6);
+            var ground = new List<MapShop>();
+            var upper = new List<MapShop>();
+            if (b.shops != null)
+                foreach (var sp in b.shops)
+                {
+                    if (sp.f <= 1 && sp.f >= 0) ground.Add(sp);
+                    else if (sp.f >= 2 && sp.f <= lv) upper.Add(sp);
+                }
+            bool store = ground.Count > 0
+                         || (b.shops == null || b.shops.Length == 0) && (style == Facade.Style.Shop
+                             || (style == Facade.Style.Villa && b.k == "gen" && lv >= 2 && lv <= 5 && hash % 10 < 2)
+                             || (style == Facade.Style.Office && hash % 10 < 3));
+            if (ground.Count > 0 && style == Facade.Style.Villa) style = Facade.Style.Shop;
             float h = roofOnly ? 4.6f : store ? Facade.ShopFloor + (lv - 1) * Facade.Floor : lv * Facade.Floor;
             int wv = hash % Facade.Variants(style), sv = (hash / 7) % Facade.SignVariants, rv = (hash / 13) % 4;
 
@@ -515,15 +519,15 @@ public partial class CityGenerator
                 if (num == null) num = (101 + hash % 12) + "동";
                 Kit.Label(t, num, localMid + fn * 0.06f + Vector3.up * (h - 2.4f), Kit.Facing(fn), 2.2f, Kit.Hex("5E6E80"));
             }
+            else if (ground.Count > 0 || upper.Count > 0)
+            {
+                ShopSigns(t, ground, upper, localMid, fn, fd, fl, h, hash);
+            }
             else if (store && fl > 4f)
             {
-                string sign = realName ?? (hash % 10 < 6 ? FakeShops[hash % FakeShops.Length] : null);
-                if (sign != null)
-                {
-                    if (sign.Length > 10) sign = sign.Substring(0, 10);
-                    Color tc = (sv % Facade.SignVariants) == 1 ? Kit.Hex("2E3135") : Color.white;
-                    Kit.Label(t, sign, localMid + fn * 0.05f + Vector3.up * 2.95f, Kit.Facing(fn), Mathf.Min(0.6f, fl / (sign.Length + 2) * 1.3f), tc);
-                }
+                // 상가 정보에 없는 빈 점포
+                if (hash % 10 < 3)
+                    SignPanel(t, "임대 문의", localMid + Vector3.up * 2.95f, fn, new Vector3(Mathf.Min(fl - 1f, 4f), 0.7f, 0.08f), Kit.Hex("E9ECEF"), Kit.Hex("C8402E"));
             }
             else if (realName != null && fl > 4f)
             {
@@ -531,7 +535,103 @@ public partial class CityGenerator
                 Kit.Label(t, realName, localMid + fn * 0.06f + Vector3.up * Mathf.Min(h - 0.8f, 5f), Kit.Facing(fn), 0.8f, Kit.Hex("2E3A48"));
             }
 
-            PlaceBuildingLoot(b, style, store, poi, fmid, fn, fd, fl, hash);
+            if (ground.Count > 0) PlaceShopLoot(ground, fmid, fn, fd, fl, hash);
+            else PlaceBuildingLoot(b, style, store, poi, fmid, fn, fd, fl, hash);
+        }
+    }
+
+    // ================= 실제 가게 간판 =================
+
+    static Color SignColor(MapShop s, int salt)
+    {
+        string c = s.c ?? "", m = s.m ?? "";
+        Color[] pal;
+        if (c.Contains("편의점")) pal = new[] { Kit.Hex("3A8A5C"), Kit.Hex("5A3A8A"), Kit.Hex("2E6EA8") };
+        else if (c.Contains("약국")) pal = new[] { Kit.Hex("2E7D6B"), Kit.Hex("3A8A5C") };
+        else if (c.Contains("카페") || c.Contains("빵")) pal = new[] { Kit.Hex("4A3428"), Kit.Hex("2E3135"), Kit.Hex("E9ECEF") };
+        else if (c.Contains("치킨")) pal = new[] { Kit.Hex("F2C230"), Kit.Hex("C8402E") };
+        else if (m.Contains("음식")) pal = new[] { Kit.Hex("C8402E"), Kit.Hex("7A5A3A"), Kit.Hex("E8892B"), Kit.Hex("A8322A") };
+        else if (m.Contains("교육")) pal = new[] { Kit.Hex("34558A"), Kit.Hex("2E3A48"), Kit.Hex("E9ECEF") };
+        else if (m.Contains("보건")) pal = new[] { Kit.Hex("2E7D6B"), Kit.Hex("34558A"), Kit.Hex("E9ECEF") };
+        else if (m.Contains("숙박")) pal = new[] { Kit.Hex("8A2E6A"), Kit.Hex("5A3A8A") };
+        else if (m.Contains("예술") || m.Contains("스포츠")) pal = new[] { Kit.Hex("5A3A8A"), Kit.Hex("2E3A48") };
+        else if (m.Contains("부동산")) pal = new[] { Kit.Hex("34558A"), Kit.Hex("E9ECEF") };
+        else if (m.Contains("소매")) pal = new[] { Kit.Hex("2E6EA8"), Kit.Hex("3A8A5C"), Kit.Hex("E9ECEF"), Kit.Hex("C8402E") };
+        else pal = new[] { Kit.Hex("6A6E74"), Kit.Hex("2E3A48"), Kit.Hex("E9ECEF") };
+        return pal[Mathf.Abs((s.n ?? "").GetHashCode() + salt) % pal.Length];
+    }
+
+    static Color TextOn(Color bg) => (bg.r * 0.3f + bg.g * 0.59f + bg.b * 0.11f) > 0.62f ? Kit.Hex("2E3135") : Color.white;
+
+    /// <summary>벽에 붙은 간판 판 + 글씨. center = 판 중앙(로컬, 벽면 위), n = 바깥 법선</summary>
+    static void SignPanel(Transform t, string text, Vector3 center, Vector3 n, Vector3 size, Color bg, Color fg)
+    {
+        var rot = Quaternion.LookRotation(n, Vector3.up);
+        Kit.Box(t, center + n * (size.z * 0.5f + 0.02f), size, bg, rot: rot, name: "간판");
+        float hgt = Mathf.Min(size.y * 0.72f, size.x / Mathf.Max(2, text.Length + 1) * 1.45f);
+        Kit.Label(t, text, center + n * (size.z + 0.04f), Kit.Facing(n), hgt, fg);
+    }
+
+    void ShopSigns(Transform t, List<MapShop> ground, List<MapShop> upper, Vector3 mid, Vector3 n, Vector2 d, float frontLen, float h, int hash)
+    {
+        Vector3 along = new Vector3(d.x, 0, d.y);
+        // 1층: 정면을 가게 수만큼 나눠 가게마다 간판
+        int k = Mathf.Clamp(ground.Count, 0, Mathf.Max(1, Mathf.FloorToInt(frontLen / 3.2f)));
+        float seg = (frontLen - 0.4f) / Mathf.Max(1, k);
+        for (int i = 0; i < k; i++)
+        {
+            var sp = ground[i];
+            float off = -frontLen * 0.5f + 0.2f + seg * (i + 0.5f);
+            Color bg = SignColor(sp, i);
+            string name = sp.n.Length > 12 ? sp.n.Substring(0, 12) : sp.n;
+            SignPanel(t, name, mid + along * off + Vector3.up * 2.95f, n, new Vector3(seg - 0.25f, 0.75f, 0.1f), bg, TextOn(bg));
+        }
+        // 2층 이상: 층마다 창문 위에 판 간판 (한 층에 최대 2개)
+        var perFloor = new Dictionary<int, int>();
+        int made = 0;
+        foreach (var sp in upper)
+        {
+            if (made >= 8) break;
+            perFloor.TryGetValue(sp.f, out int c);
+            if (c >= 2) continue;
+            perFloor[sp.f] = c + 1;
+            float y = Facade.ShopFloor + (sp.f - 2) * Facade.Floor + 2.55f;
+            if (y > h - 0.3f) continue;
+            float w = Mathf.Min(frontLen * 0.45f, 1.2f + sp.n.Length * 0.42f);
+            float off = (c == 0 ? -1f : 1f) * (frontLen * 0.25f);
+            Color bg = SignColor(sp, sp.f);
+            string name = sp.n.Length > 10 ? sp.n.Substring(0, 10) : sp.n;
+            SignPanel(t, name, mid + along * off + Vector3.up * y, n, new Vector3(w, 0.62f, 0.08f), bg, TextOn(bg));
+            made++;
+        }
+    }
+
+    void PlaceShopLoot(List<MapShop> ground, Vector3 mid, Vector3 n, Vector2 d, float frontLen, int hash)
+    {
+        // 가게 2곳 중 1곳 꼴로 문 앞 매대가 남아 있다
+        Vector3 along = new Vector3(d.x, 0, d.y);
+        int k = Mathf.Clamp(ground.Count, 0, Mathf.Max(1, Mathf.FloorToInt(frontLen / 3.2f)));
+        float seg = (frontLen - 0.4f) / Mathf.Max(1, k);
+        for (int i = 0; i < k; i++)
+        {
+            var sp = ground[i];
+            if (((hash >> i) + i * 7) % 10 >= 5) continue;
+            string c = sp.c ?? "", m = sp.m ?? "";
+            Vector3 pos = mid + along * (-frontLen * 0.5f + 0.2f + seg * (i + 0.5f)) + n * 0.9f + Vector3.up * 0.8f;
+            string label = (sp.n.Length > 10 ? sp.n.Substring(0, 10) : sp.n);
+            var size = new Vector3(Mathf.Min(1.4f, seg - 0.4f), 1.6f, 0.5f);
+            if (c.Contains("편의점") || c.Contains("슈퍼"))
+                Container(lootRoot, label + " 진열대", pos, size, shelfMat, (kimbap, 0.7f, 2), (ramen, 0.7f, 3), (water, 0.8f, 3), (coffee, 0.6f, 2), (bandage, 0.25f, 1));
+            else if (c.Contains("약국") || m.Contains("보건"))
+                Container(lootRoot, label + " 약장", pos, size, shelfMat, (bandage, 0.9f, 3), (water, 0.3f, 1));
+            else if (c.Contains("카페") || c.Contains("빵"))
+                Container(lootRoot, label + " 쇼케이스", pos, size, shelfMat, (coffee, 0.8f, 3), (water, 0.5f, 1), (kimbap, 0.2f, 1));
+            else if (m.Contains("음식"))
+                Container(lootRoot, label + " 주방 식자재", pos + Vector3.down * 0.4f, new Vector3(size.x, 0.8f, 0.7f), (ramen, 0.6f, 2), (kimbap, 0.5f, 2), (water, 0.5f, 1));
+            else if (c.Contains("철물") || c.Contains("정비") || c.Contains("공구") || c.Contains("자전거"))
+                Container(lootRoot, label + " 공구 선반", pos, size, shelfMat, (wrench, 0.5f, 1), (pipe, 0.7f, 1), (Fuel, c.Contains("정비") ? 0.45f : 0.1f, 1));
+            else if (m.Contains("소매"))
+                Container(lootRoot, label + " 매대", pos, size, shelfMat, (water, 0.4f, 1), (bandage, 0.2f, 1), (pipe, 0.1f, 1));
         }
     }
 

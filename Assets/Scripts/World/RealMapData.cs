@@ -51,6 +51,17 @@ public class MapBuilding
     public int f;       // 1 = 지도에 없어서 채워 넣은 건물
     public int safe;    // 1 = 플레이어 거점 자리
     public float[] p;   // 외곽선 (반시계), x,z...
+    public MapShop[] shops;   // 소상공인 상가정보: 이 건물에 든 실제 가게들
+}
+
+/// <summary>소상공인시장진흥공단 상가(상권)정보 한 줄 (공공데이터)</summary>
+[Serializable]
+public class MapShop
+{
+    public string n;    // 상호명
+    public string c;    // 업종 소분류 (편의점, 카페, 약국 ...)
+    public string m;    // 업종 대분류 (소매, 음식, 교육 ...)
+    public int f;       // 층 (0 = 모름 → 1층으로 본다, -1 = 지하)
 }
 
 [Serializable]
