@@ -89,6 +89,8 @@ public class AndroidAI : MonoBehaviour
         hearingMultiplier *= Random.Range(0.8f, 1.25f);
         waitTimer = Random.Range(0f, waitAtPoint * 2f);
         wpIndex = waypoints != null && waypoints.Length > 0 ? Random.Range(0, waypoints.Length) : 0;
+        // 모델을 먼저 만들어야 피격 연출(AndroidFeedback)이 모델의 렌더러를 잡는다
+        if (GetComponent<AndroidVisual>() == null) gameObject.AddComponent<AndroidVisual>();
         if (GetComponent<AndroidFeedback>() == null) gameObject.AddComponent<AndroidFeedback>();
 
         // 전용 레이어: 미니맵에 그대로 보이지 않게 하고, 카메라 가림 처리에서도 제외

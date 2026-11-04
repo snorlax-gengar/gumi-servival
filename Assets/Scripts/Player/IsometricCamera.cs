@@ -114,14 +114,17 @@ public class IsometricCamera : MonoBehaviour
         foreach (var h in hits)
         {
             if (h.transform == target || h.transform.IsChildOf(target)) continue;
+
+            // 건물이면 창문·간판까지 통째로 숨긴다
+            var group = h.collider.GetComponentInParent<OccluderGroup>();
+            if (group != null)
+            {
+                foreach (var gr in group.Renderers) Hide(gr);
+                continue;
+            }
             var r = h.collider.GetComponent<Renderer>();
             if (r == null || r.bounds.max.y < 2f) continue;   // 바닥·낮은 물건은 그대로
-            hitNow.Add(r);
-            if (!hidden.ContainsKey(r))
-            {
-                hidden[r] = r.shadowCastingMode;
-                r.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
-            }
+            Hide(r);
         }
 
         toRestore.Clear();
@@ -130,6 +133,17 @@ public class IsometricCamera : MonoBehaviour
         {
             if (r != null) r.shadowCastingMode = hidden[r];
             hidden.Remove(r);
+        }
+    }
+
+    void Hide(Renderer r)
+    {
+        if (r == null) return;
+        hitNow.Add(r);
+        if (!hidden.ContainsKey(r))
+        {
+            hidden[r] = r.shadowCastingMode;
+            r.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
         }
     }
 }

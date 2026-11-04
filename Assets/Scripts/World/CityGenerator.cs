@@ -36,6 +36,7 @@ public class CityGenerator : MonoBehaviour
     System.Random rng;
     Transform root, androidRoot;
     BlockType[,] map;
+    int apartmentCount, factoryCount;
 
     float R(float a, float b) => a + (float)rng.NextDouble() * (b - a);
     int RI(int a, int bExclusive) => rng.Next(a, bExclusive);
@@ -58,6 +59,7 @@ public class CityGenerator : MonoBehaviour
         for (int x = 0; x < blocksX; x++)
             for (int z = 0; z < blocksZ; z++)
                 BuildBlock(x, z, map[x, z]);
+        BuildStreets();
 
         PlacePlayer();
         SpawnAndroids();
@@ -147,12 +149,16 @@ public class CityGenerator : MonoBehaviour
             for (int j = 0; j < nz; j++)
             {
                 if (Chance(0.12f)) { MaybeContainer(p, x0 + i * (lotX + alley) + lotX / 2, z0 + j * (lotZ + alley) + lotZ / 2, "빈 공터"); continue; }
-                float w = lotX * R(0.7f, 0.95f), d = lotZ * R(0.7f, 0.95f), h = R(6f, 12f);
+                float w = lotX * R(0.75f, 0.92f), d = lotZ * R(0.75f, 0.9f);
                 float cx = x0 + i * (lotX + alley) + lotX / 2, cz = z0 + j * (lotZ + alley) + lotZ / 2;
-                Box("원룸", p, new Vector3(cx, h / 2, cz), new Vector3(w, h, d), buildingMat);
+                bool south = j < (nz + 1) / 2;          // 남쪽 절반은 남쪽 도로, 북쪽 절반은 북쪽 도로를 본다
+                float yaw = south ? 0f : 180f;
+                var pos = new Vector3(cx, 0.1f, cz);
+                if (Chance(0.25f)) BuildingKit.Shop(p, pos, yaw, w, d, RI(1, 3), rng);
+                else BuildingKit.Oneroom(p, pos, yaw, w, d, RI(2, 4), rng);
 
                 // 건물 앞에 쓰레기통이나 택배상자
-                float fz = cz - d / 2 - 0.8f;
+                float fz = south ? cz - d / 2 - 0.8f : cz + d / 2 + 0.8f;
                 if (Chance(0.45f)) Container(p, "쓰레기통", new Vector3(cx + R(-w / 3, w / 3), 0.5f, fz), new Vector3(1, 1, 1),
                     (water, 0.25f, 1), (kimbap, 0.2f, 1), (coffee, 0.2f, 1));
                 else if (Chance(0.35f)) Container(p, "택배상자", new Vector3(cx + R(-w / 3, w / 3), 0.35f, fz), new Vector3(0.9f, 0.7f, 0.9f),
@@ -165,7 +171,8 @@ public class CityGenerator : MonoBehaviour
         // 편의점 (남쪽 도로를 향해 문)
         float sw = R(11f, 14f), sd = R(9f, 11f);
         float sx = x0 + R(sw / 2 + 1, S - sw / 2 - 1), sz = z0 + sd / 2 + 1.5f;
-        Hollow(p, "편의점", sx, sz, sw, sd, 3.5f, storeMat, 2.6f);
+        var store = Hollow(p, "편의점", sx, sz, sw, sd, 3.5f, storeMat, 2.6f);
+        DecorateStore(store, sx, sz, sw, sd, 2.6f);
 
         float inner = sd / 2 - 1.2f;
         Container(p, "편의점 선반", new Vector3(sx - sw / 4, 0.75f, sz + inner), new Vector3(sw / 3, 1.5f, 0.6f), shelfMat,
@@ -182,8 +189,8 @@ public class CityGenerator : MonoBehaviour
         float w = (S - 2) / n;
         for (int i = 0; i < n; i++)
         {
-            float h = R(5f, 9f), d = R(8f, 12f);
-            Box("상가", p, new Vector3(x0 + 1 + w * i + w / 2, h / 2, z0 + S - d / 2 - 1), new Vector3(w - 2, h, d), buildingMat);
+            float d = R(8f, 11f);
+            BuildingKit.Shop(p, new Vector3(x0 + 1 + w * i + w / 2, 0.1f, z0 + S - d / 2 - 1), 180f, w - 2, d, RI(1, 4), rng);
         }
     }
 
@@ -192,18 +199,21 @@ public class CityGenerator : MonoBehaviour
         // 길쭉한 고층동 2개 + 주차된 차
         for (int k = 0; k < 2; k++)
         {
-            float w = R(22f, 28f), d = R(8f, 10f), h = R(18f, 30f);
+            float w = R(22f, 28f), d = R(8f, 10f);
+            int floors = RI(6, 11);
             float cz = z0 + (k == 0 ? S * 0.28f : S * 0.75f);
-            Box("아파트", p, new Vector3(x0 + S / 2, h / 2, cz), new Vector3(w, h, d), apartmentMat);
+            BuildingKit.Apartment(p, new Vector3(x0 + S / 2, 0.1f, cz), 0f, w, d, floors, 101 + (apartmentCount++), rng);
             Container(p, "택배 보관함", new Vector3(x0 + S / 2 + R(-6, 6), 0.6f, cz - d / 2 - 0.8f), new Vector3(1.6f, 1.2f, 0.6f),
                 (ramen, 0.6f, 2), (water, 0.5f, 2), (bandage, 0.4f, 1));
         }
         int cars = RI(2, 5);
         for (int i = 0; i < cars; i++)
         {
-            Vector3 pos = new Vector3(x0 + R(3, S - 3), 0.75f, z0 + S * 0.52f + R(-2, 2));
-            Container(p, "주차된 차 트렁크", pos, new Vector3(4.2f, 1.5f, 1.9f), shelfMat,
+            Vector3 pos = new Vector3(x0 + R(4, S - 4), 0.1f, z0 + S * 0.52f + R(-1, 1));
+            var car = BuildingKit.Car(p, pos, Chance(0.5f) ? 90f : 270f, rng);
+            AddLoot(car.GetChild(0).gameObject, "주차된 차 트렁크",
                 (water, 0.4f, 1), (pipe, 0.15f, 1), (coffee, 0.4f, 1), (bandage, 0.3f, 1));
+            Kit.Box(car, new Vector3(0, 0.92f, 1.9f), new Vector3(1.4f, 0.06f, 0.5f), Kit.Loot, name: "트렁크 표시");
         }
     }
 
@@ -213,13 +223,12 @@ public class CityGenerator : MonoBehaviour
         for (int i = 0; i < trees; i++)
         {
             float x = x0 + R(2, S - 2), z = z0 + R(2, S - 2);
-            var trunk = Box("나무", p, new Vector3(x, 1.5f, z), new Vector3(0.5f, 3f, 0.5f), treeMat);
-            var crown = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            DestroyImmediate(crown.GetComponent<Collider>());
-            crown.transform.SetParent(trunk.transform.parent);
-            crown.transform.position = new Vector3(x, 3.6f, z);
-            crown.transform.localScale = Vector3.one * R(2.5f, 3.8f);
-            Paint(crown, treeMat);
+            var tree = Kit.Group(p, "나무", new Vector3(x, 0.1f, z), Quaternion.Euler(0, R(0, 360), 0));
+            Kit.Box(tree, new Vector3(0, 1.4f, 0), new Vector3(0.4f, 2.8f, 0.4f), Kit.Hex("5A4636"), true, name: "줄기");
+            float cs = R(2.4f, 3.6f);
+            Color leaf = Chance(0.5f) ? Kit.Hex("3F5E3A") : Kit.Hex("4E7048");
+            Kit.Box(tree, new Vector3(0, 3.2f, 0), new Vector3(cs, cs * 0.6f, cs), leaf, rot: Quaternion.Euler(0, 45, 0), name: "잎");
+            Kit.Box(tree, new Vector3(0, 3.2f + cs * 0.45f, 0), new Vector3(cs * 0.7f, cs * 0.5f, cs * 0.7f), leaf * 1.1f, name: "잎");
         }
         Container(p, "자판기", new Vector3(x0 + S / 2, 1f, z0 + 1.2f), new Vector3(1.2f, 2f, 0.8f), shelfMat,
             (water, 0.7f, 2), (coffee, 0.7f, 2));
@@ -230,7 +239,14 @@ public class CityGenerator : MonoBehaviour
         // 큰 공장동 (문 두 개) + 내부 자재
         float w = S - R(4f, 8f), d = S - R(8f, 12f), h = R(7f, 10f);
         float cx = x0 + S / 2, cz = z0 + d / 2 + 2f;
-        Hollow(p, "공장", cx, cz, w, d, h, factoryMat, 4f, true);
+        var factory = Hollow(p, "공장", cx, cz, w, d, h, factoryMat, 4f, true);
+        BuildingKit.FactoryDetails(factory, cx, cz, w, d, h, 4f, 1 + (factoryCount++), rng);
+        int boxes = RI(1, 4);
+        for (int i = 0; i < boxes; i++)
+        {
+            var c = BuildingKit.Container(p, new Vector3(cx - w / 2 + 4f + i * 7f, 0.1f, cz + d / 2 + 3.6f), 90f, rng);
+            if (Chance(0.4f)) BuildingKit.Container(c, new Vector3(0, 2.6f, 0), 0f, rng, true);
+        }
 
         Container(p, "공구함", new Vector3(cx - w / 2 + 1.5f, 0.5f, cz + d / 2 - 1.2f), new Vector3(1.4f, 1f, 0.7f),
             (wrench, 0.5f, 1), (pipe, 0.4f, 1), (bandage, 0.3f, 1));
@@ -368,16 +384,107 @@ public class CityGenerator : MonoBehaviour
     // ================= 헬퍼 =================
 
     /// <summary>안이 비어 있는 건물. 남쪽 벽에 문(틈)을 낸다. bothSides면 북쪽에도.</summary>
-    void Hollow(Transform p, string name, float cx, float cz, float w, float d, float h, Material m, float door, bool bothSides = false)
+    Transform Hollow(Transform p, string name, float cx, float cz, float w, float d, float h, Material m, float door, bool bothSides = false)
     {
         var g = new GameObject(name).transform;
         g.SetParent(p);
+        g.gameObject.AddComponent<OccluderGroup>();
         const float t = 0.3f;
         Box("벽_서", g, new Vector3(cx - w / 2, h / 2, cz), new Vector3(t, h, d), m);
         Box("벽_동", g, new Vector3(cx + w / 2, h / 2, cz), new Vector3(t, h, d), m);
         WallWithDoor(g, cx, cz - d / 2, w, h, m, door);
         if (bothSides) WallWithDoor(g, cx, cz + d / 2, w, h, m, door);
         else Box("벽_북", g, new Vector3(cx, h / 2, cz + d / 2), new Vector3(w, h, t), m);
+        return g;
+    }
+
+    void DecorateStore(Transform store, float sx, float sz, float sw, float sd, float door)
+    {
+        float front = sz - sd / 2;
+        float seg = (sw - door) / 2;
+        foreach (float sgn in new[] { -1f, 1f })
+        {
+            float x = sx + sgn * (door / 2 + seg / 2);
+            Kit.Box(store, new Vector3(x, 1.25f, front - 0.17f), new Vector3(seg - 0.4f, 2.0f, 0.05f), Kit.GlassLight, name: "쇼윈도");
+            for (int i = 0; i < 2; i++)
+                Kit.Box(store, new Vector3(x, 0.75f + i * 0.7f, front - 0.2f), new Vector3(seg - 0.6f, 0.06f, 0.04f), Kit.Frame, name: "진열대");
+        }
+        Kit.Box(store, new Vector3(sx, 3.05f, front - 0.25f), new Vector3(sw + 0.2f, 0.8f, 0.3f), Kit.Hex("3A8A5C"), name: "간판");
+        Kit.Label(store, "24시 편의점", new Vector3(sx, 3.05f, front - 0.42f), Kit.Facing(Vector3.back), 0.5f, Color.white);
+        Kit.Box(store, new Vector3(sx, 2.55f, front - 0.75f), new Vector3(sw + 0.2f, 0.08f, 1.1f), Kit.Hex("2E6E4A"),
+            rot: Quaternion.Euler(-12, 0, 0), name: "차양");
+    }
+
+    void AddLoot(GameObject g, string label, params (ItemData item, float chance, int max)[] table)
+    {
+        var lc = g.AddComponent<LootContainer>();
+        lc.containerName = label;
+        foreach (var e in table)
+            if (e.item != null) lc.lootTable.Add(new LootContainer.LootEntry { item = e.item, chance = e.chance, maxCount = e.max });
+    }
+
+    // ================= 거리 =================
+
+    bool InHorizontalRoad(float z) { for (int j = 0; j <= blocksZ; j++) if (Mathf.Abs(z - RoadCenter(j)) < roadWidth / 2 + 0.5f) return true; return false; }
+    bool InVerticalRoad(float x) { for (int i = 0; i <= blocksX; i++) if (Mathf.Abs(x - RoadCenter(i)) < roadWidth / 2 + 0.5f) return true; return false; }
+
+    void BuildStreets()
+    {
+        var streets = new GameObject("거리").transform;
+        streets.SetParent(root);
+        Color lane = Kit.Hex("E9ECEF");
+
+        // 중앙 차선 (점선)
+        for (int i = 0; i <= blocksX; i++)
+            for (float z = 3f; z < TotalZ - 3f; z += 6f)
+                if (!InHorizontalRoad(z)) Kit.Box(streets, new Vector3(RoadCenter(i), 0.01f, z), new Vector3(0.15f, 0.02f, 3f), lane, name: "차선");
+        for (int j = 0; j <= blocksZ; j++)
+            for (float x = 3f; x < TotalX - 3f; x += 6f)
+                if (!InVerticalRoad(x)) Kit.Box(streets, new Vector3(x, 0.01f, RoadCenter(j)), new Vector3(3f, 0.02f, 0.15f), lane, name: "차선");
+
+        // 횡단보도 (교차로 일부)
+        for (int i = 0; i <= blocksX; i++)
+            for (int j = 0; j <= blocksZ; j++)
+            {
+                if (!Chance(0.4f)) continue;
+                float cx = RoadCenter(i), cz = RoadCenter(j);
+                float zc = cz - roadWidth / 2 - 1.8f;
+                if (zc > 2f)
+                    for (float x = cx - roadWidth / 2 + 0.8f; x < cx + roadWidth / 2 - 0.4f; x += 1.1f)
+                        Kit.Box(streets, new Vector3(x, 0.012f, zc), new Vector3(0.55f, 0.02f, 2.8f), lane, name: "횡단보도");
+                float xc = cx + roadWidth / 2 + 1.8f;
+                if (xc < TotalX - 2f)
+                    for (float z = cz - roadWidth / 2 + 0.8f; z < cz + roadWidth / 2 - 0.4f; z += 1.1f)
+                        Kit.Box(streets, new Vector3(xc, 0.012f, z), new Vector3(2.8f, 0.02f, 0.55f), lane, name: "횡단보도");
+            }
+
+        // 전봇대 + 전깃줄 (세로 도로 동쪽 가장자리)
+        for (int i = 0; i <= blocksX; i++)
+        {
+            float x = RoadCenter(i) + roadWidth / 2 - 0.45f;
+            if (x > TotalX - 1f) continue;
+            Vector3? prev = null;
+            for (float z = 8f; z < TotalZ - 4f; z += 20f + R(-3f, 3f))
+            {
+                if (InHorizontalRoad(z)) { prev = null; continue; }
+                var pos = new Vector3(x, 0, z);
+                BuildingKit.UtilityPole(streets, pos, 90f, Chance(0.25f));
+                if (prev.HasValue) BuildingKit.Wires(streets, prev.Value, pos);
+                prev = pos;
+            }
+        }
+
+        // 나트륨 가로등 (가로 도로 북쪽 가장자리)
+        for (int j = 0; j <= blocksZ; j++)
+        {
+            float z = RoadCenter(j) + roadWidth / 2 - 0.4f;
+            if (z > TotalZ - 1f) continue;
+            for (float x = 14f; x < TotalX - 6f; x += 28f)
+            {
+                if (InVerticalRoad(x)) x += roadWidth;
+                BuildingKit.StreetLight(streets, new Vector3(x, 0, z), 180f);
+            }
+        }
     }
 
     void WallWithDoor(Transform g, float cx, float z, float w, float h, Material m, float door)

@@ -127,6 +127,8 @@ public class PlayerCombat : MonoBehaviour
         blade.localScale = new Vector3(0.08f, 0.08f, range);
         blade.localPosition = new Vector3(0, 0, range * 0.5f);
         swing.gameObject.SetActive(true);
+        var visual = GetComponent<PlayerVisual>();
+        if (visual != null) visual.TriggerSwing();
     }
 
     void AnimateSwing()
