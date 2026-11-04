@@ -26,6 +26,7 @@ public class GameManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        if (GetComponent<ScenarioManager>() == null) gameObject.AddComponent<ScenarioManager>();
         var p = GameObject.FindGameObjectWithTag("Player");
         if (p != null) player = p.GetComponent<PlayerStats>();
     }
@@ -54,7 +55,11 @@ public class GameManager : MonoBehaviour
             // 6시 일출, 18시 일몰
             float angle = (HourOfDay - 6f) / 24f * 360f;
             sun.transform.rotation = Quaternion.Euler(angle, 170f, 0);
-            sun.intensity = Mathf.Clamp01(Mathf.Sin((HourOfDay - 6f) / 12f * Mathf.PI)) * 1.1f + 0.05f;
+            float daylight = Mathf.Clamp01(Mathf.Sin((HourOfDay - 6f) / 12f * Mathf.PI));
+            sun.intensity = daylight * 1.1f + 0.05f;
+            // 밤에는 주변광도 어둡게: 가로등과 발전기 불빛만 의지하게
+            RenderSettings.ambientIntensity = Mathf.Lerp(0.18f, 1f, Mathf.Clamp01(daylight * 2.5f));
+            RenderSettings.reflectionIntensity = Mathf.Lerp(0.2f, 1f, daylight);
         }
     }
 

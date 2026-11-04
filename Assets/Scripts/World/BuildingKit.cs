@@ -38,7 +38,7 @@ public static class BuildingKit
     // =============================================================
     // 필로티 원룸 (1층 주차장 + 위층 원룸)
     // =============================================================
-    public static Transform Oneroom(Transform parent, Vector3 pos, float yaw, float w, float d, int floors, System.Random rng)
+    public static Transform Oneroom(Transform parent, Vector3 pos, float yaw, float w, float d, int floors, System.Random rng, bool emptyPilotis = false)
     {
         var root = Root(parent, "원룸", pos, yaw);
         Color wall = Chance(rng, 0.6f) ? Kit.Tile : Kit.Hex(Chance(rng, 0.5f) ? "D9CFC0" : "CFC6B6");
@@ -56,7 +56,7 @@ public static class BuildingKit
         Kit.Box(root, new Vector3(w / 4, 1.3f, -0.03f), new Vector3(1.2f, 0.6f, 0.12f), Kit.Hex("8A8F96"), name: "우편함");
         Kit.Box(root, new Vector3(0, H - 0.05f, -d / 4), new Vector3(w, 0.1f, d / 2), Kit.Hex("2A2F36"), name: "필로티천장");
         Kit.Box(root, new Vector3(-w / 2 + 0.25f, 1.4f, -d / 2 + 0.5f), new Vector3(0.18f, 0.28f, 0.06f), Kit.Tech, emission: 1.6f, name: "충전소켓");
-        if (Chance(rng, 0.65f) && w > 6.5f) Car(root, new Vector3(R(rng, -w / 4 + 1f, w / 4 - 1f), 0, -d / 4), Chance(rng, 0.5f) ? 90 : 270, rng);
+        if (!emptyPilotis && Chance(rng, 0.65f) && w > 6.5f) Car(root, new Vector3(R(rng, -w / 4 + 1f, w / 4 - 1f), 0, -d / 4), Chance(rng, 0.5f) ? 90 : 270, rng);
 
         // --- 위층 외피 ---
         Kit.Box(root, new Vector3(0, H + floors * H / 2, 0), new Vector3(w, floors * H, d), wall, true, name: "외벽");

@@ -316,6 +316,7 @@ public class AndroidAI : MonoBehaviour
     void OnDeath()
     {
         CurrentState = State.Disabled;
+        ScenarioManager.Kills++;
         if (agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
         agent.enabled = false; // 에이전트가 위치를 다시 끌어올리지 않도록
         if (visual != null && visual.Animated) visual.PlayDeath();   // 쓰러지는 동작

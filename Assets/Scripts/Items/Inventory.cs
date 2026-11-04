@@ -36,6 +36,8 @@ public class Inventory : MonoBehaviour
         }
     }
 
+    public bool Has(ItemData item) => item != null && stacks.Exists(x => x.item == item && x.count > 0);
+
     public bool CanAdd(ItemData item) => CurrentWeight + item.weight <= maxWeight + 0.0001f;
 
     public bool Add(ItemData item)

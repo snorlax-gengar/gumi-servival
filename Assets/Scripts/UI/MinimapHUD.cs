@@ -154,6 +154,22 @@ public class MinimapHUD : MonoBehaviour
             GUI.DrawTexture(new Rect(m.x - 5, m.y - 5, 10, 10), dot);
         }
 
+        // 목표 (노란 마름모). 지도 밖이면 가장자리에 붙인다
+        var sm = ScenarioManager.Instance;
+        if (sm != null && sm.ObjectivePos.HasValue)
+        {
+            Vector3 v = mapCam.WorldToViewportPoint(sm.ObjectivePos.Value);
+            float vx = Mathf.Clamp(v.x, 0.04f, 0.96f), vy = Mathf.Clamp(v.y, 0.04f, 0.96f);
+            Vector2 om = new Vector2(r.x + vx * r.width, r.y + (1f - vy) * r.height);
+            Matrix4x4 sv = GUI.matrix;
+            GUIUtility.RotateAroundPivot(45f, om * UIScale.S);
+            GUI.color = Kit.Hazard;
+            float sz = 9f + Mathf.Sin(Time.unscaledTime * 5f) * 1.5f;
+            GUI.DrawTexture(new Rect(om.x - sz / 2, om.y - sz / 2, sz, sz), Texture2D.whiteTexture);
+            GUI.matrix = sv;
+            GUI.color = Color.white;
+        }
+
         // 플레이어 화살표
         if (ToMap(r, pp, out Vector2 pm))
         {
@@ -206,6 +222,19 @@ public class MinimapHUD : MonoBehaviour
             string text = d.deg == 90 ? "동(공단)" : d.name;
             GUI.Label(new Rect(x - 40, r.y, 80, h), text, compassStyle);
         }
+        // 목표 방향 (노란 점)
+        var sm = ScenarioManager.Instance;
+        if (sm != null && sm.ObjectivePos.HasValue && iso.target != null)
+        {
+            Vector3 d = sm.ObjectivePos.Value - iso.target.position;
+            float yawTo = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
+            float delta = Mathf.Clamp(Mathf.DeltaAngle(iso.Yaw, yawTo), -88f, 88f);
+            float ox = r.center.x + delta * pxPerDeg;
+            GUI.color = Kit.Hazard;
+            GUI.DrawTexture(new Rect(ox - 4, r.yMax - 10, 8, 8), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+        }
+
         // 가운데 눈금
         GUI.color = new Color(1f, 0.85f, 0.3f);
         GUI.DrawTexture(new Rect(r.center.x - 1, r.yMax - 6, 2, 8), Texture2D.whiteTexture);

@@ -42,6 +42,29 @@ public class CityGenerator : MonoBehaviour
     System.Random rng;
     Transform root, androidRoot;
     BlockType[,] map;
+    bool safehouseBuilt;
+
+    /// <summary>거점(발전기) 위치와 확실한 연료통 위치 — 시나리오 목표 표시에 쓴다</summary>
+    public static Vector3 SafehousePos { get; private set; }
+    public static Vector3 FuelHintPos { get; private set; }
+
+    ItemData fuel;
+    /// <summary>연료통 (런타임에 만드는 아이템)</summary>
+    public ItemData Fuel
+    {
+        get
+        {
+            if (fuel == null)
+            {
+                fuel = ScriptableObject.CreateInstance<ItemData>();
+                fuel.name = "Item_Fuel";
+                fuel.displayName = "연료통";
+                fuel.type = ItemType.Misc;
+                fuel.weight = 2f;
+            }
+            return fuel;
+        }
+    }
     int apartmentCount, factoryCount;
     readonly List<Vector3> factoryCenters = new List<Vector3>();
     float spawnTimer;
@@ -157,12 +180,26 @@ public class CityGenerator : MonoBehaviour
         for (int i = 0; i < nx; i++)
             for (int j = 0; j < nz; j++)
             {
-                if (Chance(0.12f)) { MaybeContainer(p, x0 + i * (lotX + alley) + lotX / 2, z0 + j * (lotZ + alley) + lotZ / 2, "빈 공터"); continue; }
+                bool homeLot = !safehouseBuilt && Mathf.Approximately(x0, Origin(0)) && Mathf.Approximately(z0, Origin(0)) && j == 0 && i == (nx - 1) / 2;
+                if (!homeLot && Chance(0.12f)) { MaybeContainer(p, x0 + i * (lotX + alley) + lotX / 2, z0 + j * (lotZ + alley) + lotZ / 2, "빈 공터"); continue; }
                 float w = lotX * R(0.75f, 0.92f), d = lotZ * R(0.75f, 0.9f);
                 float cx = x0 + i * (lotX + alley) + lotX / 2, cz = z0 + j * (lotZ + alley) + lotZ / 2;
                 bool south = j < (nz + 1) / 2;          // 남쪽 절반은 남쪽 도로, 북쪽 절반은 북쪽 도로를 본다
                 float yaw = south ? 0f : 180f;
                 var pos = new Vector3(cx, 0.1f, cz);
+
+                // 시작 블록의 남쪽 가운데 필지 = 플레이어의 원룸(거점). 1층 필로티에 발전기
+                if (homeLot)
+                {
+                    safehouseBuilt = true;
+                    BuildingKit.Oneroom(p, pos, 0f, w, d, 3, rng, true);
+                    Vector3 genPos = pos + new Vector3(w / 4f, 0f, -d / 4f);
+                    Generator.FuelItem = Fuel;
+                    Generator.Build(p, genPos, 180f);
+                    SafehousePos = genPos;
+                    continue;
+                }
+
                 if (Chance(0.72f)) Kenney(p, Pick(Commercial), pos, yaw, w, d, () => BuildingKit.Oneroom(p, pos, yaw, w, d, RI(2, 4), rng));
                 else Kenney(p, Pick(Suburban), pos, yaw, w, d, () => BuildingKit.Shop(p, pos, yaw, w, d, RI(1, 3), rng));
 
@@ -225,7 +262,7 @@ public class CityGenerator : MonoBehaviour
             Vector3 pos = new Vector3(x0 + R(4, S - 4), 0.1f, z0 + S * 0.52f + R(-1, 1));
             var car = BuildingKit.Car(p, pos, Chance(0.5f) ? 90f : 270f, rng);
             AddLoot(car.GetChild(0).gameObject, "주차된 차 트렁크",
-                (water, 0.4f, 1), (pipe, 0.15f, 1), (coffee, 0.4f, 1), (bandage, 0.3f, 1));
+                (water, 0.4f, 1), (pipe, 0.15f, 1), (coffee, 0.4f, 1), (bandage, 0.3f, 1), (Fuel, 0.3f, 1));
             Kit.Box(car, new Vector3(0, 0.92f, 1.9f), new Vector3(1.4f, 0.06f, 0.5f), Kit.Loot, name: "트렁크 표시");
         }
     }
@@ -290,7 +327,7 @@ public class CityGenerator : MonoBehaviour
 
         float lootZ = kenneyFactory ? cz - d / 2 - 1.4f : cz + d / 2 - 1.2f;
         Container(p, "공구함", new Vector3(cx - w / 3, 0.5f, lootZ), new Vector3(1.4f, 1f, 0.7f),
-            (wrench, 0.5f, 1), (pipe, 0.4f, 1), (bandage, 0.3f, 1));
+            (wrench, 0.5f, 1), (pipe, 0.4f, 1), (bandage, 0.3f, 1), (Fuel, 0.4f, 1));
         Container(p, "고철더미", new Vector3(cx + R(0, w / 3), 0.5f, kenneyFactory ? lootZ : cz + R(-d / 4, d / 4)), new Vector3(2f, 1f, 1.5f),
             (pipe, 0.6f, 1));
         if (!kenneyFactory)
@@ -302,7 +339,7 @@ public class CityGenerator : MonoBehaviour
 
         // 뒤편 야적장
         Container(p, "부품 상자", new Vector3(x0 + R(3, S - 3), 0.5f, z0 + S - 1.5f), new Vector3(1.5f, 1f, 1f),
-            (bandage, 0.4f, 2), (wrench, 0.2f, 1));
+            (bandage, 0.4f, 2), (wrench, 0.2f, 1), (Fuel, 0.3f, 1));
     }
 
     void MaybeContainer(Transform p, float x, float z, string label)
@@ -328,6 +365,20 @@ public class CityGenerator : MonoBehaviour
         // 첫 무기는 확실히 근처에
         Container(root, "공구함", start + new Vector3(3f, 0.3f, 1.8f), new Vector3(1.2f, 0.8f, 0.6f), containerMat,
             new List<ItemData> { wrench }, (water, 0.6f, 1), (kimbap, 0.5f, 1));
+
+        // 확실한 연료통: 같은 도로를 따라 동쪽, 다음 블록 앞에 쓰러진 배달 오토바이
+        Vector3 bike = new Vector3(Origin(1) + blockSize * 0.5f, 0.1f, RoadCenter(0) + roadWidth / 2f - 1.2f);
+        var b = Kit.Group(root, "버려진 오토바이", bike, Quaternion.Euler(0, 75f, 0));
+        var body = Kit.Box(b, new Vector3(0, 0.45f, 0), new Vector3(0.5f, 0.5f, 1.6f), Kit.Hex("E9ECEF"), true, name: "차체");
+        Kit.Box(b, new Vector3(0, 0.78f, -0.25f), new Vector3(0.38f, 0.12f, 0.7f), Kit.Hex("2E3135"), name: "안장");
+        Kit.Box(b, new Vector3(0, 0.95f, -0.6f), new Vector3(0.55f, 0.45f, 0.45f), Kit.Loot, name: "배달통");
+        Kit.Cyl(b, new Vector3(0, 0.25f, 0.65f), new Vector3(0.5f, 0.12f, 0.5f), Kit.Dark, rot: Quaternion.Euler(0, 0, 90), name: "바퀴");
+        Kit.Cyl(b, new Vector3(0, 0.25f, -0.65f), new Vector3(0.5f, 0.12f, 0.5f), Kit.Dark, rot: Quaternion.Euler(0, 0, 90), name: "바퀴");
+        var lc = body.AddComponent<LootContainer>();
+        lc.containerName = "버려진 배달 오토바이";
+        lc.fixedItems = new List<ItemData> { Fuel };
+        lc.lootTable.Add(new LootContainer.LootEntry { item = kimbap, chance = 0.6f, maxCount = 1 });
+        FuelHintPos = bike;
 
         var cam = FindFirstObjectByType<IsometricCamera>();
         if (cam != null) cam.Snap();
@@ -599,7 +650,7 @@ public class CityGenerator : MonoBehaviour
                 var dm = AssetLib.Spawn("Kenney/Roads/dumpster", streets, pos, AssetLib.KenneyFrontYaw, AssetLib.Fit.Footprint,
                     new Vector3(2.0f, 0, 1.2f), true, false, "쓰레기 수거함");
                 if (dm == null) continue;
-                AddLoot(dm.gameObject, "쓰레기 수거함", (water, 0.3f, 1), (kimbap, 0.25f, 1), (pipe, 0.1f, 1), (bandage, 0.2f, 1));
+                AddLoot(dm.gameObject, "쓰레기 수거함", (water, 0.3f, 1), (kimbap, 0.25f, 1), (pipe, 0.1f, 1), (bandage, 0.2f, 1), (Fuel, 0.06f, 1));
                 Bounds b = AssetLib.LocalBounds(dm);
                 Kit.Box(dm, new Vector3(b.center.x, b.max.y + 0.02f, b.center.z), new Vector3(b.size.x * 0.9f, 0.05f, 0.25f), Kit.Loot, name: "주황 띠");
             }
