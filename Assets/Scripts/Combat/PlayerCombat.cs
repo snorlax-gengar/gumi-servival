@@ -83,6 +83,8 @@ public class PlayerCombat : MonoBehaviour
         if (stats != null && stats.stamina < cost) { HUD.ShowMessage("너무 지쳤다 (스태미나 부족)"); return; }
 
         cooldown = w ? w.attackCooldown : fistCooldown;
+        // 휘두르는 동안은 제자리 (쿨다운의 약 60%)
+        if (controller != null) controller.LockForAttack(cooldown * 0.6f);
         if (stats != null) stats.stamina -= cost;
         StartSwing(range);
         bool crouching = controller != null && controller.IsCrouching;

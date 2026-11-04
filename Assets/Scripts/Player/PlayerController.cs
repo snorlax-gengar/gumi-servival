@@ -72,6 +72,18 @@ public class PlayerController : MonoBehaviour
         float speed = IsCrouching ? crouchSpeed : IsRunning ? runSpeed : walkSpeed;
         if (stats != null) speed *= stats.SpeedMultiplier;
 
+        // 공격 중: 발을 멈추고, 휘두르는 순간에만 앞으로 살짝 내딛는다
+        bool attacking = attackLock > 0f;
+        if (attacking)
+        {
+            attackLock -= Time.deltaTime;
+            lungeTimer -= Time.deltaTime;
+            move = lungeTimer > 0f ? transform.forward : Vector3.zero;
+            speed = lungeTimer > 0f ? lungeSpeed : 0f;
+            IsRunning = false;
+            IsMoving = false;
+        }
+
         // 중력
         if (cc.isGrounded && verticalVel < 0) verticalVel = -2f;
         verticalVel += gravity * Time.deltaTime;
@@ -82,9 +94,23 @@ public class PlayerController : MonoBehaviour
         cc.height = Mathf.Lerp(cc.height, IsCrouching ? 1.1f : 1.8f, 10f * Time.deltaTime);
         cc.center = new Vector3(0, cc.height / 2f, 0);
 
-        FaceMoveDirection(move);
+        if (!attacking) FaceMoveDirection(move);
         EmitFootstepNoise();
     }
+
+    [Header("공격 중 이동")]
+    public float lungeSpeed = 3.5f;     // 휘두를 때 내딛는 속도
+    public float lungeTime = 0.12f;     // 내딛는 시간 (0.12초 x 3.5 = 약 0.4m)
+    float attackLock, lungeTimer;
+
+    /// <summary>공격하는 동안 이동을 멈춘다. PlayerCombat이 부른다.</summary>
+    public void LockForAttack(float seconds)
+    {
+        attackLock = seconds;
+        lungeTimer = lungeTime;
+    }
+
+    public bool IsAttacking => attackLock > 0f;
 
     [Header("회전")]
     public float turnSpeed = 720f;   // 초당 회전 각도
