@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
 
 /// <summary>
 /// 오른쪽 위 미니맵 + 화면 위쪽 나침반 + 조작 안내.
@@ -51,12 +52,20 @@ public class MinimapHUD : MonoBehaviour
         mapCam.targetTexture = miniRT;
         mapCam.depth = -10;
 
+        RenderPipelineManager.beginCameraRendering += BeforeCamera;
         arrow = MakeArrow(32);
         dot = MakeDot(16);
     }
 
+    // 미니맵은 위에서 150m 떨어져 찍으니 안개를 끄고 그린다
+    void BeforeCamera(ScriptableRenderContext ctx, Camera cam)
+    {
+        RenderSettings.fog = cam != mapCam && GameManager.FogOn;
+    }
+
     void OnDestroy()
     {
+        RenderPipelineManager.beginCameraRendering -= BeforeCamera;
         if (miniRT) miniRT.Release();
         if (bigRT) bigRT.Release();
         if (mapCam) Destroy(mapCam.gameObject);
@@ -124,6 +133,13 @@ public class MinimapHUD : MonoBehaviour
             ? CenterSquare(Mathf.Min(UIScale.W, UIScale.H) * 0.82f)
             : new Rect(UIScale.W - mapSize - 20, 48, mapSize, mapSize);
         DrawMap(r, bigMap ? bigRT : miniRT);
+
+        if (CityGenerator.RealMapActive && !string.IsNullOrEmpty(CityGenerator.MapAttribution))
+        {
+            var att = new GUIStyle(small) { fontSize = 11, alignment = TextAnchor.UpperRight };
+            Rect ar = bigMap ? new Rect(r.xMax - 400, r.yMax + 4, 400, 18) : new Rect(r.xMax - 400, r.yMax + 2, 400, 18);
+            GUI.Label(ar, "지도 " + CityGenerator.MapAttribution, att);
+        }
 
         if (showHelp)
             GUI.Label(new Rect(UIScale.W - 820, UIScale.H - 30, 800, 24),

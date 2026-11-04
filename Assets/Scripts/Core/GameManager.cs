@@ -23,6 +23,10 @@ public class GameManager : MonoBehaviour
 
     PlayerStats player;
 
+    /// <summary>안개를 쓰는지. 미니맵 카메라는 안개를 끄고 그린다.</summary>
+    public static bool FogOn { get; private set; }
+    static readonly Color DayFog = new Color(0.66f, 0.69f, 0.72f), DuskFog = new Color(0.55f, 0.45f, 0.40f), NightFog = new Color(0.05f, 0.06f, 0.09f);
+
     void Awake()
     {
         Instance = this;
@@ -33,7 +37,16 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        HUD.ShowMessage("배가 고프다... 바로 옆 주황색 공구함(F)부터 뒤져 보자\n동쪽 공단은 안드로이드 소굴이다", 8f);
+        // 먼 곳은 뿌옇게: 넓은 지도에서 원경을 정리하고 분위기를 낸다
+        FogOn = true;
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.Linear;
+        RenderSettings.fogStartDistance = 45f;
+        RenderSettings.fogEndDistance = 240f;
+        if (CityGenerator.RealMapActive)
+            HUD.ShowMessage("2052년 구미, 구미역 앞 원도심. 배가 고프다...\n바로 옆 주황색 공구함(F)부터 뒤져 보자", 8f);
+        else
+            HUD.ShowMessage("배가 고프다... 바로 옆 주황색 공구함(F)부터 뒤져 보자\n동쪽 공단은 안드로이드 소굴이다", 8f);
     }
 
     void Update()
@@ -60,6 +73,10 @@ public class GameManager : MonoBehaviour
             // 밤에는 주변광도 어둡게: 가로등과 발전기 불빛만 의지하게
             RenderSettings.ambientIntensity = Mathf.Lerp(0.18f, 1f, Mathf.Clamp01(daylight * 2.5f));
             RenderSettings.reflectionIntensity = Mathf.Lerp(0.2f, 1f, daylight);
+            float dusk = Mathf.Clamp01(1f - Mathf.Abs(daylight - 0.15f) * 6f);
+            Color fog = Color.Lerp(NightFog, DayFog, Mathf.Clamp01(daylight * 2f));
+            RenderSettings.fogColor = Color.Lerp(fog, DuskFog, dusk * 0.5f);
+            RenderSettings.fogEndDistance = Mathf.Lerp(120f, 240f, Mathf.Clamp01(daylight * 2f));
         }
     }
 

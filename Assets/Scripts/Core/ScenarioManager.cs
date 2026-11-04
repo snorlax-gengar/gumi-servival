@@ -96,7 +96,7 @@ public class ScenarioManager : MonoBehaviour
             Objective = $"발전기 수리: 연료통 {(hasFuel ? 1 : 0)}/1 · 부품 {Mathf.Min(parts, gen.partsToRepair)}/{gen.partsToRepair}";
             if (!hasFuel)
             {
-                Hint = "동쪽 도로의 쓰러진 배달 오토바이를 뒤져 보자";
+                Hint = CityGenerator.FuelHintText;
                 ObjectivePos = CityGenerator.FuelHintPos;
             }
             else if (parts < gen.partsToRepair)

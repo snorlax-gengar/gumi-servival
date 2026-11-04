@@ -9,7 +9,7 @@ using UnityEngine.AI;
 /// LevelNavMesh보다 먼저 실행되어야 하므로 실행 순서를 더 앞당겼다.
 /// </summary>
 [DefaultExecutionOrder(-2000)]
-public class CityGenerator : MonoBehaviour
+public partial class CityGenerator : MonoBehaviour
 {
     public enum BlockType { Oneroom, Shop, Apartment, Park, Factory }
 
@@ -85,6 +85,15 @@ public class CityGenerator : MonoBehaviour
         rng = new System.Random(UsedSeed);
         root = transform;
         androidRoot = new GameObject("Androids").transform;
+        FuelHintText = "동쪽 도로의 쓰러진 배달 오토바이를 뒤져 보자";
+
+        // 실제 구미 지도 (OpenStreetMap)가 있으면 그걸로 만든다
+        if (TryBuildRealMap())
+        {
+            PlacePlayerReal();
+            SpawnAndroidsReal();
+            return;
+        }
 
         BuildGround();
         PlanBlocks();
@@ -363,12 +372,24 @@ public class CityGenerator : MonoBehaviour
         if (cc) cc.enabled = true;
 
         // 첫 무기는 확실히 근처에
-        Container(root, "공구함", start + new Vector3(3f, 0.3f, 1.8f), new Vector3(1.2f, 0.8f, 0.6f), containerMat,
-            new List<ItemData> { wrench }, (water, 0.6f, 1), (kimbap, 0.5f, 1));
+        MakeStarterToolbox(start + new Vector3(3f, 0.2f, 1.8f));
 
         // 확실한 연료통: 같은 도로를 따라 동쪽, 다음 블록 앞에 쓰러진 배달 오토바이
-        Vector3 bike = new Vector3(Origin(1) + blockSize * 0.5f, 0.1f, RoadCenter(0) + roadWidth / 2f - 1.2f);
-        var b = Kit.Group(root, "버려진 오토바이", bike, Quaternion.Euler(0, 75f, 0));
+        MakeFuelBike(new Vector3(Origin(1) + blockSize * 0.5f, 0.1f, RoadCenter(0) + roadWidth / 2f - 1.2f), 75f);
+
+        var cam = FindFirstObjectByType<IsometricCamera>();
+        if (cam != null) cam.Snap();
+    }
+
+    void MakeStarterToolbox(Vector3 pos)
+    {
+        Container(root, "공구함", pos + new Vector3(0, 0.1f, 0), new Vector3(1.2f, 0.8f, 0.6f), containerMat,
+            new List<ItemData> { wrench }, (water, 0.6f, 1), (kimbap, 0.5f, 1));
+    }
+
+    void MakeFuelBike(Vector3 bike, float yaw)
+    {
+        var b = Kit.Group(root, "버려진 오토바이", bike, Quaternion.Euler(0, yaw, 0));
         var body = Kit.Box(b, new Vector3(0, 0.45f, 0), new Vector3(0.5f, 0.5f, 1.6f), Kit.Hex("E9ECEF"), true, name: "차체");
         Kit.Box(b, new Vector3(0, 0.78f, -0.25f), new Vector3(0.38f, 0.12f, 0.7f), Kit.Hex("2E3135"), name: "안장");
         Kit.Box(b, new Vector3(0, 0.95f, -0.6f), new Vector3(0.55f, 0.45f, 0.45f), Kit.Loot, name: "배달통");
@@ -379,9 +400,6 @@ public class CityGenerator : MonoBehaviour
         lc.fixedItems = new List<ItemData> { Fuel };
         lc.lootTable.Add(new LootContainer.LootEntry { item = kimbap, chance = 0.6f, maxCount = 1 });
         FuelHintPos = bike;
-
-        var cam = FindFirstObjectByType<IsometricCamera>();
-        if (cam != null) cam.Snap();
     }
 
     void SpawnAndroids()
@@ -422,6 +440,7 @@ public class CityGenerator : MonoBehaviour
     {
         var gm = GameManager.Instance;
         if (gm == null) return;
+        if (RealMapActive) UpdatePopulationReal();
         float h = gm.HourOfDay;
         bool night = h >= 18.5f || h < 6f;
         spawnTimer += gm.GameHoursThisFrame;
@@ -476,6 +495,7 @@ public class CityGenerator : MonoBehaviour
 
     Vector3 RandomRoadPoint()
     {
+        if (RealMapActive) return RealRoadPoint(PlayerPos(), 70f, 150f);
         if (Chance(0.5f))
             return new Vector3(RoadCenter(RI(0, blocksX + 1)) + R(-2, 2), 0, R(4, TotalZ - 4));
         return new Vector3(R(4, TotalX - 4), 0, RoadCenter(RI(0, blocksZ + 1)) + R(-2, 2));
@@ -483,6 +503,7 @@ public class CityGenerator : MonoBehaviour
 
     Vector3 RoadPointNear(Vector3 c, float radius)
     {
+        if (RealMapActive) return RealRoadPoint(c, 0f, radius);
         for (int t = 0; t < 12; t++)
         {
             Vector3 p = RandomRoadPoint();

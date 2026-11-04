@@ -11,6 +11,10 @@ public class NightLights : MonoBehaviour
     static NightLights instance;
     bool? lastNight;
     float timer;
+    Transform player;
+
+    /// <summary>0보다 크면 플레이어 주변 이 반경 안의 불빛만 켠다 (넓은 지도에서 성능)</summary>
+    public static float ActiveRadius = 0f;
 
     public static void Register(Light l)
     {
@@ -32,6 +36,27 @@ public class NightLights : MonoBehaviour
 
         float hour = GameManager.Instance != null ? GameManager.Instance.HourOfDay : 12f;
         bool night = hour >= 18.5f || hour < 6f;
+
+        if (ActiveRadius > 0f)
+        {
+            timer = 0.5f;
+            if (player == null)
+            {
+                var p = GameObject.FindGameObjectWithTag("Player");
+                if (p != null) player = p.transform;
+            }
+            lights.RemoveAll(l => l == null);
+            Vector3 c = player != null ? player.position : Vector3.zero;
+            float r2 = ActiveRadius * ActiveRadius;
+            foreach (var l in lights)
+            {
+                bool on = night && (l.transform.position - c).sqrMagnitude < r2;
+                if (l.enabled != on) l.enabled = on;
+            }
+            lastNight = null;
+            return;
+        }
+
         if (lastNight == night) return;
         lastNight = night;
 
