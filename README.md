@@ -6,7 +6,7 @@
 
 | 파일 | 역할 |
 | --- | --- |
-| `Player/PlayerController.cs` | WASD 이동, Shift 달리기, Ctrl 웅크리기, 마우스 방향 바라보기, 발소리 소음 |
+| `Player/PlayerController.cs` | WASD 이동(이동 방향을 바라봄), Shift 달리기, Ctrl 웅크리기, 발소리 소음 |
 | `Player/IsometricCamera.cs` | 쿼터뷰 추적 카메라, 마우스 휠 줌 |
 | `Player/PlayerStats.cs` | 체력·배고픔·갈증·스태미나 |
 | `Player/Interactor.cs` | 가까운 물체와 F키 상호작용 |
@@ -29,7 +29,7 @@
 | WASD | 이동 |
 | Shift | 달리기 (스태미나 소모, 소음 큼) |
 | Ctrl | 웅크리기 (느림, 소음·발각 거리 감소) |
-| 마우스 | 바라보는 방향 |
+| (자동) | 캐릭터는 이동하는 방향을 바라본다 |
 | 좌클릭 | 공격 |
 | F | 뒤지기 |
 | Q / E | 카메라 90° 회전 |

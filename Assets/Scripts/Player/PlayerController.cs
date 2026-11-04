@@ -82,26 +82,23 @@ public class PlayerController : MonoBehaviour
         cc.height = Mathf.Lerp(cc.height, IsCrouching ? 1.1f : 1.8f, 10f * Time.deltaTime);
         cc.center = new Vector3(0, cc.height / 2f, 0);
 
-        FaceMouse();
+        FaceMoveDirection(move);
         EmitFootstepNoise();
     }
 
-    void FaceMouse()
-    {
-        var mouse = Mouse.current;
-        Camera cam = Camera.main;
-        if (mouse == null || cam == null) return;
-        if (mouse.rightButton.isPressed) return; // 카메라 회전 중에는 방향 유지
+    [Header("회전")]
+    public float turnSpeed = 720f;   // 초당 회전 각도
 
-        Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
-        Plane ground = new Plane(Vector3.up, transform.position);
-        if (ground.Raycast(ray, out float enter))
-        {
-            Vector3 look = ray.GetPoint(enter) - transform.position;
-            look.y = 0;
-            if (look.sqrMagnitude > 0.05f)
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(look), 15f * Time.deltaTime);
-        }
+    /// <summary>
+    /// 키보드 이동 방향을 바라본다 (카메라 기준). 멈추면 마지막 방향을 유지.
+    /// 카메라는 우클릭 드래그 / Q·E로 따로 돌린다.
+    /// </summary>
+    void FaceMoveDirection(Vector3 move)
+    {
+        move.y = 0;
+        if (move.sqrMagnitude < 0.01f) return;
+        Quaternion target = Quaternion.LookRotation(move.normalized, Vector3.up);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, turnSpeed * Time.deltaTime);
     }
 
     void EmitFootstepNoise()
