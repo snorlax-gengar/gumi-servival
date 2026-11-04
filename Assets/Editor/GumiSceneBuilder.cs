@@ -16,17 +16,96 @@ public static class GumiSceneBuilder
     const string Root = "Assets/Gumi";
     const string ScenePath = "Assets/Scenes/Gumi_Prototype.unity";
     const string AutoRunKey = "Gumi_AutoBuilt_v1";
+    const string CityScenePath = "Assets/Scenes/Gumi_City.unity";
+    const string CityAutoRunKey = "Gumi_CityBuilt_v1";
 
     static GumiSceneBuilder()
     {
         EditorApplication.delayCall += () =>
         {
-            if (EditorPrefs.GetBool(AutoRunKey, false)) return;
-            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null) { EditorPrefs.SetBool(AutoRunKey, true); return; }
             if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-            EditorPrefs.SetBool(AutoRunKey, true);
-            Build();
+            if (!EditorPrefs.GetBool(AutoRunKey, false))
+            {
+                EditorPrefs.SetBool(AutoRunKey, true);
+                if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null) Build();
+            }
+            if (!EditorPrefs.GetBool(CityAutoRunKey, false))
+            {
+                EditorPrefs.SetBool(CityAutoRunKey, true);
+                if (AssetDatabase.LoadAssetAtPath<SceneAsset>(CityScenePath) == null) BuildCity();
+            }
         };
+    }
+
+    /// <summary>
+    /// 플레이할 때마다 새로 생성되는 도시 씬. 씬에는 플레이어·카메라·매니저와
+    /// CityGenerator만 두고, 건물·물건·안드로이드는 런타임에 만들어진다.
+    /// </summary>
+    [MenuItem("Gumi/도시 맵 씬 만들기 (매번 새로 생성)")]
+    public static void BuildCity()
+    {
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+        EnsureFolder("Assets", "Gumi");
+        EnsureFolder(Root, "Items");
+        EnsureFolder(Root, "Materials");
+        EnsureFolder("Assets", "Scenes");
+
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+
+        var level = new GameObject("Level");
+        var gen = level.AddComponent<CityGenerator>();
+        level.AddComponent<LevelNavMesh>();
+
+        gen.groundMat = Mat("Sidewalk", new Color(0.55f, 0.55f, 0.53f));
+        gen.roadMat = Mat("Ground", new Color(0.32f, 0.33f, 0.34f));
+        gen.buildingMat = Mat("Building", new Color(0.78f, 0.74f, 0.68f));
+        gen.apartmentMat = Mat("Apartment", new Color(0.86f, 0.86f, 0.82f));
+        gen.storeMat = Mat("Store", new Color(0.35f, 0.62f, 0.45f));
+        gen.factoryMat = Mat("Factory", new Color(0.45f, 0.52f, 0.62f));
+        gen.shelfMat = Mat("Shelf", new Color(0.85f, 0.85f, 0.88f));
+        gen.containerMat = Mat("Container", new Color(0.85f, 0.55f, 0.15f));
+        gen.treeMat = Mat("Tree", new Color(0.3f, 0.5f, 0.28f));
+        gen.androidMat = Mat("Android", new Color(0.88f, 0.9f, 0.92f));
+        gen.visorMat = Mat("Visor", new Color(0.9f, 0.15f, 0.1f));
+
+        gen.kimbap = Item("Item_Kimbap", "삼각김밥", ItemType.Food, 0.2f, h: 25);
+        gen.ramen = Item("Item_Ramen", "컵라면", ItemType.Food, 0.3f, h: 35, t: -5);
+        gen.water = Item("Item_Water", "생수", ItemType.Drink, 0.5f, t: 40);
+        gen.coffee = Item("Item_Coffee", "캔커피", ItemType.Drink, 0.25f, t: 20);
+        gen.bandage = Item("Item_Bandage", "붕대", ItemType.Medical, 0.1f, hp: 20);
+        gen.wrench = Weapon("Item_Wrench", "렌치", 1.2f, 25, 1.8f, 0.8f, 8);
+        gen.pipe = Weapon("Item_Pipe", "쇠파이프", 2.0f, 35, 2.2f, 1.1f, 10);
+
+        Material mPlayer = Mat("Player", new Color(0.2f, 0.45f, 0.85f));
+        var player = new GameObject("Player");
+        player.tag = "Player";
+        player.transform.position = new Vector3(20, 0.1f, 4);
+        var cc = player.AddComponent<CharacterController>();
+        cc.height = 1.8f; cc.center = new Vector3(0, 0.9f, 0); cc.radius = 0.35f;
+        player.AddComponent<PlayerStats>();
+        player.AddComponent<PlayerController>();
+        player.AddComponent<Inventory>();
+        player.AddComponent<Interactor>();
+        player.AddComponent<PlayerCombat>();
+        player.AddComponent<HUD>();
+        Visual(PrimitiveType.Capsule, "Body", player.transform, new Vector3(0, 0.9f, 0), new Vector3(0.7f, 0.9f, 0.7f), mPlayer);
+        Visual(PrimitiveType.Cube, "Nose", player.transform, new Vector3(0, 1.5f, 0.35f), new Vector3(0.3f, 0.15f, 0.3f), mPlayer);
+
+        Camera cam = Camera.main;
+        var iso = cam.gameObject.AddComponent<IsometricCamera>();
+        iso.target = player.transform;
+        cam.farClipPlane = 300f;
+        player.GetComponent<PlayerController>().cameraTransform = cam.transform;
+
+        Light sun = Object.FindFirstObjectByType<Light>();
+        var gm = new GameObject("GameManager").AddComponent<GameManager>();
+        gm.sun = sun;
+
+        EditorSceneManager.SaveScene(scene, CityScenePath);
+        AddToBuildSettings(CityScenePath);
+        AssetDatabase.SaveAssets();
+        Debug.Log("<b>[Gumi]</b> 도시 맵 씬 생성 완료! ▶를 누를 때마다 새로운 구미 시가지가 만들어집니다.");
     }
 
     [MenuItem("Gumi/프로토타입 씬 만들기")]

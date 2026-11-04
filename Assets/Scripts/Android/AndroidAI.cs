@@ -32,6 +32,10 @@ public class AndroidAI : MonoBehaviour
     public float loseSightTime = 4f;
     public float investigateTime = 6f;
 
+    [Header("경보")]
+    public float alertRadius = 16f;     // 발견 시 주변 안드로이드를 부르는 범위
+    public float alertCooldown = 10f;
+
     public State CurrentState { get; private set; } = State.Patrol;
 
     NavMeshAgent agent;
@@ -41,7 +45,8 @@ public class AndroidAI : MonoBehaviour
     PlayerController playerController;
 
     int wpIndex;
-    float waitTimer, attackTimer, lostTimer, investigateTimer;
+    float waitTimer, attackTimer, lostTimer, investigateTimer, alertTimer;
+    float lookYaw;
     Vector3 lastKnownPos, homePos;
 
     void Awake()
@@ -49,6 +54,14 @@ public class AndroidAI : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         body = GetComponent<Damageable>();
         homePos = transform.position;
+
+        // 개체마다 성능을 조금씩 다르게 → 매번 같은 패턴이 되지 않도록
+        patrolSpeed *= Random.Range(0.85f, 1.2f);
+        chaseSpeed *= Random.Range(0.92f, 1.1f);
+        viewDistance *= Random.Range(0.85f, 1.15f);
+        hearingMultiplier *= Random.Range(0.8f, 1.25f);
+        waitTimer = Random.Range(0f, waitAtPoint * 2f);
+        wpIndex = waypoints != null && waypoints.Length > 0 ? Random.Range(0, waypoints.Length) : 0;
         if (GetComponent<AndroidFeedback>() == null) gameObject.AddComponent<AndroidFeedback>();
 
         var p = GameObject.FindGameObjectWithTag("Player");
@@ -91,10 +104,18 @@ public class AndroidAI : MonoBehaviour
     {
         if (CurrentState == State.Disabled || !agent.enabled || !agent.isOnNavMesh) return;
         attackTimer -= Time.deltaTime;
+        alertTimer -= Time.deltaTime;
 
         bool sees = CanSeePlayer();
         if (sees)
         {
+            if (CurrentState != State.Chase && alertTimer <= 0)
+            {
+                // 발견! 경보를 울려 주변 동료를 부른다
+                alertTimer = alertCooldown;
+                NoiseSystem.Emit(transform.position, alertRadius);
+                HUD.ShowMessage("삐— 안드로이드가 경보를 울렸다!", 2f);
+            }
             lastKnownPos = player.position;
             lostTimer = loseSightTime;
             CurrentState = State.Chase;
@@ -121,9 +142,23 @@ public class AndroidAI : MonoBehaviour
         if (agent.pathPending || agent.remainingDistance > 0.5f) return;
 
         waitTimer -= Time.deltaTime;
-        if (waitTimer > 0) return;
-        waitTimer = waitAtPoint;
-        wpIndex = (wpIndex + 1) % waypoints.Length;
+        if (waitTimer > 0)
+        {
+            // 서 있는 동안 주변을 두리번거린다
+            Quaternion look = Quaternion.Euler(0, lookYaw, 0);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, look, 70f * Time.deltaTime);
+            if (Quaternion.Angle(transform.rotation, look) < 2f) lookYaw = transform.eulerAngles.y + Random.Range(-120f, 120f);
+            return;
+        }
+
+        // 다음 목적지는 무작위 (같은 곳 연속 방지), 대기 시간도 들쭉날쭉
+        waitTimer = Random.Range(waitAtPoint * 0.4f, waitAtPoint * 2.5f);
+        lookYaw = transform.eulerAngles.y + Random.Range(-120f, 120f);
+        if (waypoints.Length > 1)
+        {
+            int next = Random.Range(0, waypoints.Length - 1);
+            wpIndex = next >= wpIndex ? next + 1 : next;
+        }
         SetDest(waypoints[wpIndex].position);
     }
 

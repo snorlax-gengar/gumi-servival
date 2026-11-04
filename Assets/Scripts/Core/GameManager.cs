@@ -32,7 +32,7 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        HUD.ShowMessage("배가 고프다... 바로 앞 주황색 공구함(E)부터 뒤져 보자", 7f);
+        HUD.ShowMessage("배가 고프다... 바로 옆 주황색 공구함(E)부터 뒤져 보자\n동쪽 공단은 안드로이드 소굴이다", 8f);
     }
 
     void Update()

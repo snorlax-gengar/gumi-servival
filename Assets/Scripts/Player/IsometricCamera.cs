@@ -15,6 +15,14 @@ public class IsometricCamera : MonoBehaviour
     public float followSmooth = 8f;
     public float zoomStep = 1.5f;   // 휠 한 칸당 이동 거리(m)
 
+    /// <summary>보간 없이 즉시 플레이어 위치로 이동 (스폰 직후 사용)</summary>
+    public void Snap()
+    {
+        if (target == null) return;
+        Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
+        transform.SetPositionAndRotation(target.position - rot * Vector3.forward * distance, rot);
+    }
+
     void LateUpdate()
     {
         if (target == null) return;

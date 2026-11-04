@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/Gumi_City.unity
+    guid: ee089bcad10a2fe4b9fbc32cbcd576f6
+  - enabled: 1
     path: Assets/Scenes/Gumi_Prototype.unity
     guid: 97fc30cd968006a4692cfb2e4b25ad83
   - enabled: 1
