@@ -35,13 +35,14 @@ public static class AssetLib
         return c;
     }
 
-    public enum Fit { None, Footprint, Height, FootprintStretch }
+    public enum Fit { None, Footprint, Height, FootprintStretch, HeightSlim }
 
     /// <summary>
     /// 에셋을 만들어 배치한다.
     /// fit = Footprint: size.x × size.z 안에 들어가도록 균일 축소/확대
     /// fit = Height: 높이가 size.y가 되도록 균일 축소/확대
     /// fit = FootprintStretch: 바닥은 size.x × size.z에 꽉 맞추고 높이는 비율 유지(평균 배율)
+    /// fit = HeightSlim: 높이는 size.y, 가로·세로는 그 배율에 size.x를 곱해 가늘게 (작은 모형 기둥을 크게 키울 때)
     /// </summary>
     public static Transform Spawn(string path, Transform parent, Vector3 pos, float yaw, Fit fit, Vector3 size,
         bool collider, bool occluder, string name = null, float extraYaw = 0f)
@@ -68,6 +69,10 @@ public static class AssetLib
                     break;
                 case Fit.Height:
                     s = Vector3.one * (size.y / Mathf.Max(0.01f, b.size.y));
+                    break;
+                case Fit.HeightSlim:
+                    float hs = size.y / Mathf.Max(0.01f, b.size.y);
+                    s = new Vector3(hs * size.x, hs, hs * size.x);
                     break;
                 case Fit.FootprintStretch:
                     float sx = size.x / Mathf.Max(0.01f, b.size.x), sz = size.z / Mathf.Max(0.01f, b.size.z);

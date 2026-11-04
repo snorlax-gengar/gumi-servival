@@ -91,7 +91,9 @@ public class PlayerVisual : MonoBehaviour
                 Color c = AssetLib.BaseColor(mats[i]);
                 Color.RGBToHSV(c, out float h, out float sat, out float v);
                 Debug.Log($"[Gumi] 플레이어 재질 {mats[i].name}: #{ColorUtility.ToHtmlStringRGB(c)}");
-                if (sat > 0.45f && h > 0.02f && h < 0.12f) mats[i] = AssetLib.Recolor(mats[i], Kit.Hex("34456A"));
+                string mn = mats[i].name.ToLowerInvariant();
+                if (mn.Contains("skin")) mats[i] = AssetLib.Recolor(mats[i], Kit.Hex("D9A77F"));          // 피부가 검게 들어온 것 보정
+                else if (sat > 0.45f && h > 0.02f && h < 0.12f) mats[i] = AssetLib.Recolor(mats[i], Kit.Hex("34456A")); // 주황 → 남색
             }
             r.sharedMaterials = mats;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;

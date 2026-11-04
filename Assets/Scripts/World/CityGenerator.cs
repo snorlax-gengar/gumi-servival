@@ -236,8 +236,9 @@ public class CityGenerator : MonoBehaviour
         for (int i = 0; i < trees; i++)
         {
             float x = x0 + R(2, S - 2), z = z0 + R(2, S - 2);
-            var kt = AssetLib.Spawn(Chance(0.6f) ? "Kenney/Suburban/tree-large" : "Kenney/Suburban/tree-small", p, new Vector3(x, 0.1f, z),
-                R(0, 360), AssetLib.Fit.Height, new Vector3(0, R(4.5f, 7.5f), 0), false, false, "나무");
+            bool big = Chance(0.7f);   // tree-small은 화분 덤불이라 작게
+            var kt = AssetLib.Spawn(big ? "Kenney/Suburban/tree-large" : "Kenney/Suburban/tree-small", p, new Vector3(x, 0.1f, z),
+                R(0, 360), AssetLib.Fit.Height, new Vector3(0, big ? R(5.5f, 8f) : R(1.4f, 2.0f), 0), false, false, "나무");
             if (kt != null)
             {
                 var trunkCol = Kit.Box(kt, new Vector3(0, 1.2f, 0), new Vector3(0.4f, 2.4f, 0.4f), Color.gray, true, name: "줄기충돌");
@@ -578,7 +579,7 @@ public class CityGenerator : MonoBehaviour
                 float cx = RoadCenter(i), cz = RoadCenter(j);
                 if (Chance(0.25f))
                     AssetLib.Spawn("Kenney/Roads/traffic-light", streets, new Vector3(cx - roadWidth / 2 + 0.4f, 0, cz - roadWidth / 2 + 0.4f),
-                        AssetLib.KenneyFrontYaw, AssetLib.Fit.Height, new Vector3(0, 5f, 0), true, false, "신호등");
+                        AssetLib.KenneyFrontYaw, AssetLib.Fit.HeightSlim, new Vector3(0.5f, 5f, 0), true, false, "신호등");
                 if (Chance(0.12f))
                 {
                     Vector3 c = new Vector3(cx + 1.5f, 0, cz + roadWidth / 2 + R(5f, 15f));
@@ -644,7 +645,7 @@ public class CityGenerator : MonoBehaviour
             {
                 if (InHorizontalRoad(z)) { prev = null; continue; }
                 var pos = new Vector3(x, 0, z);
-                if (AssetLib.Spawn("Kenney/Roads/electricity-pole", streets, pos, 90f, AssetLib.Fit.Height, new Vector3(0, 9f, 0), true, false, "전봇대") == null)
+                if (AssetLib.Spawn("Kenney/Roads/electricity-pole", streets, pos, 90f, AssetLib.Fit.HeightSlim, new Vector3(0.3f, 9f, 0), true, false, "전봇대") == null)
                     BuildingKit.UtilityPole(streets, pos, 90f, Chance(0.25f));
                 if (prev.HasValue) BuildingKit.Wires(streets, prev.Value, pos);
                 prev = pos;
@@ -660,7 +661,7 @@ public class CityGenerator : MonoBehaviour
             {
                 if (InVerticalRoad(x)) x += roadWidth;
                 var lp = new Vector3(x, 0, z);
-                var lt = AssetLib.Spawn("Kenney/Roads/light-curved", streets, lp, 180f + AssetLib.KenneyFrontYaw, AssetLib.Fit.Height, new Vector3(0, 6.5f, 0), true, false, "가로등");
+                var lt = AssetLib.Spawn("Kenney/Roads/light-curved", streets, lp, 180f + AssetLib.KenneyFrontYaw, AssetLib.Fit.HeightSlim, new Vector3(0.6f, 6.5f, 0), true, false, "가로등");
                 if (lt != null) AddStreetLamp(lt, new Vector3(lp.x, 5.9f, lp.z - 1.4f));
                 else BuildingKit.StreetLight(streets, lp, 180f);
             }
