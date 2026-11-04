@@ -37,7 +37,6 @@ public class IsometricCamera : MonoBehaviour
     public bool IsDragging { get; private set; }
 
     float currentYaw, currentPitch;
-    readonly Dictionary<Renderer, ShadowCastingMode> hidden = new Dictionary<Renderer, ShadowCastingMode>();
     readonly HashSet<Renderer> hitNow = new HashSet<Renderer>();
     readonly List<Renderer> toRestore = new List<Renderer>();
     const int AndroidLayer = 31;
@@ -128,22 +127,72 @@ public class IsometricCamera : MonoBehaviour
         }
 
         toRestore.Clear();
-        foreach (var kv in hidden) if (!hitNow.Contains(kv.Key)) toRestore.Add(kv.Key);
+        foreach (var kv in ghosted) if (!hitNow.Contains(kv.Key)) toRestore.Add(kv.Key);
         foreach (var r in toRestore)
         {
-            if (r != null) r.shadowCastingMode = hidden[r];
-            hidden.Remove(r);
+            if (r != null) Restore(r, ghosted[r]);
+            ghosted.Remove(r);
         }
     }
 
+    // ---------------- 반투명 처리 ----------------
+    [Header("가리는 건물 반투명")]
+    [Range(0.05f, 0.9f)] public float ghostAlpha = 0.28f;
+
+    struct Saved { public Material[] mats; public ShadowCastingMode shadow; }
+    readonly Dictionary<Renderer, Saved> ghosted = new Dictionary<Renderer, Saved>();
+    static readonly Dictionary<Material, Material> ghostCache = new Dictionary<Material, Material>();
+
+    /// <summary>가리는 건물을 반투명하게 바꿔 실루엣은 남긴다 (URP Lit가 아니면 그림자만 남기고 숨김)</summary>
     void Hide(Renderer r)
     {
         if (r == null) return;
         hitNow.Add(r);
-        if (!hidden.ContainsKey(r))
+        if (ghosted.ContainsKey(r)) return;
+
+        var saved = new Saved { mats = r.sharedMaterials, shadow = r.shadowCastingMode };
+        bool allLit = saved.mats.Length > 0;
+        foreach (var m in saved.mats)
+            if (m == null || m.shader == null || !m.shader.name.Contains("Universal Render Pipeline/Lit")) { allLit = false; break; }
+
+        if (allLit)
         {
-            hidden[r] = r.shadowCastingMode;
-            r.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+            var g = new Material[saved.mats.Length];
+            for (int i = 0; i < g.Length; i++) g[i] = Ghost(saved.mats[i]);
+            r.sharedMaterials = g;   // 그림자는 그대로 둬서 바닥 명암이 튀지 않게
         }
+        else r.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+        ghosted[r] = saved;
+    }
+
+    static void Restore(Renderer r, Saved s)
+    {
+        r.sharedMaterials = s.mats;
+        r.shadowCastingMode = s.shadow;
+    }
+
+    Material Ghost(Material src)
+    {
+        if (ghostCache.TryGetValue(src, out var m) && m != null) return m;
+        m = new Material(src) { name = src.name + "_ghost" };
+        m.SetFloat("_Surface", 1f);            // Transparent
+        m.SetFloat("_Blend", 0f);              // Alpha
+        m.SetFloat("_AlphaClip", 0f);
+        m.SetOverrideTag("RenderType", "Transparent");
+        m.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+        m.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        m.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+        m.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
+        m.SetFloat("_ZWrite", 0f);
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.DisableKeyword("_ALPHATEST_ON");
+        m.renderQueue = (int)RenderQueue.Transparent;
+        if (m.HasProperty("_BaseColor"))
+        {
+            Color c = m.GetColor("_BaseColor"); c.a = ghostAlpha;
+            m.SetColor("_BaseColor", c);
+        }
+        ghostCache[src] = m;
+        return m;
     }
 }

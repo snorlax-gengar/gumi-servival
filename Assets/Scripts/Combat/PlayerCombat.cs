@@ -30,6 +30,17 @@ public class PlayerCombat : MonoBehaviour
     Inventory inv;
     PlayerStats stats;
     PlayerController controller;
+    TargetIndicator target;
+
+    /// <summary>지금 장착한 무기의 공격 거리 (맨손 포함)</summary>
+    public float CurrentRange
+    {
+        get
+        {
+            ItemData w = inv != null ? inv.EquippedWeapon : null;
+            return w ? w.attackRange : fistRange;
+        }
+    }
     readonly Collider[] hits = new Collider[16];
 
     // 휘두르기 연출
@@ -43,6 +54,8 @@ public class PlayerCombat : MonoBehaviour
         inv = GetComponent<Inventory>();
         stats = GetComponent<PlayerStats>();
         controller = GetComponent<PlayerController>();
+        target = GetComponent<TargetIndicator>();
+        if (target == null) target = gameObject.AddComponent<TargetIndicator>();
         BuildSwingVisual();
     }
 
@@ -90,7 +103,9 @@ public class PlayerCombat : MonoBehaviour
         // 좀보이드식: 휘두르는 순간 마우스 커서 쪽으로 몸을 돌린다
         if (controller != null)
         {
-            if (controller.MouseGroundPoint(out Vector3 aim)) controller.FaceTowards(aim);
+            // 겨냥한 안드로이드가 있으면 그쪽, 없으면 커서 쪽
+            if (target != null && target.Current != null) controller.FaceTowards(target.Current.transform.position);
+            else if (controller.MouseGroundPoint(out Vector3 aim)) controller.FaceTowards(aim);
             controller.LockForAttack(cooldown * 0.6f);
         }
         if (stats != null) stats.stamina -= cost;
