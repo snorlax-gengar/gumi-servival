@@ -103,8 +103,10 @@ public class AndroidFeedback : MonoBehaviour
 
         Vector3 sp = cam.WorldToScreenPoint(transform.position + Vector3.up * 1.6f);
         if (sp.z < 0) return;
+        UIScale.Apply();
+        Vector2 gp = UIScale.FromScreen(sp);
         const float w = 60, h = 7;
-        var r = new Rect(sp.x - w / 2, Screen.height - sp.y - h, w, h);
+        var r = new Rect(gp.x - w / 2, gp.y - h, w, h);
         GUI.color = new Color(0, 0, 0, 0.6f);
         GUI.DrawTexture(r, Texture2D.whiteTexture);
         GUI.color = new Color(0.9f, 0.2f, 0.2f);

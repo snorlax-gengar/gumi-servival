@@ -22,7 +22,7 @@ public class HUD : MonoBehaviour
     PlayerStats stats;
     Inventory inv;
     Interactor interactor;
-    GUIStyle label, big, box;
+    GUIStyle label, big, box, clockStyle;
     Texture2D white;
 
     void Awake()
@@ -51,6 +51,7 @@ public class HUD : MonoBehaviour
         if (koreanFont != null) { GUI.skin.font = koreanFont; }
         label = new GUIStyle(GUI.skin.label) { fontSize = 16 };
         label.normal.textColor = Color.white;
+        clockStyle = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
         big = new GUIStyle(label) { fontSize = 40, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
         box = new GUIStyle(GUI.skin.box);
     }
@@ -58,6 +59,7 @@ public class HUD : MonoBehaviour
     void OnGUI()
     {
         InitStyles();
+        UIScale.Apply();
         if (stats == null) return;
 
         // --- 상태 바 ---
@@ -69,12 +71,12 @@ public class HUD : MonoBehaviour
 
         // --- 시계 ---
         if (GameManager.Instance != null)
-            GUI.Label(new Rect(Screen.width - 220, 20, 200, 30), GameManager.Instance.ClockText(), label);
+            GUI.Label(new Rect(UIScale.W - 240, 16, 220, 30), GameManager.Instance.ClockText(), clockStyle);
 
         // --- 인벤토리 ---
         if (inv != null)
         {
-            float iy = Screen.height - 40 - inv.stacks.Count * 26;
+            float iy = UIScale.H - 40 - inv.stacks.Count * 26;
             GUI.Label(new Rect(20, iy - 28, 400, 26),
                 $"가방 {inv.CurrentWeight:0.0} / {inv.maxWeight:0.0} kg   (숫자키로 사용/장착)", label);
             for (int i = 0; i < inv.stacks.Count; i++)
@@ -90,27 +92,27 @@ public class HUD : MonoBehaviour
         if (interactor != null && interactor.Current != null && !stats.IsDead)
         {
             var c = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter };
-            GUI.Label(new Rect(0, Screen.height * 0.62f, Screen.width, 30), interactor.Current.Prompt, c);
+            GUI.Label(new Rect(0, UIScale.H * 0.62f, UIScale.W, 30), interactor.Current.Prompt, c);
         }
 
         // --- 메시지 ---
         if (messageTimer > 0 && !string.IsNullOrEmpty(message))
         {
             var c = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter, fontSize = 18 };
-            GUI.Label(new Rect(0, Screen.height * 0.25f, Screen.width, 60), message, c);
+            GUI.Label(new Rect(0, UIScale.H * 0.25f, UIScale.W, 60), message, c);
         }
 
         // --- 사망 화면 ---
         if (stats.IsDead)
         {
             GUI.color = new Color(0, 0, 0, 0.75f);
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), white);
+            GUI.DrawTexture(new Rect(0, 0, UIScale.W, UIScale.H), white);
             GUI.color = Color.white;
             float days = GameManager.Instance != null ? GameManager.Instance.DaysSurvived : 0;
             int d = Mathf.FloorToInt(days);
             int h = Mathf.FloorToInt((days - d) * 24f);
-            GUI.Label(new Rect(0, Screen.height * 0.4f, Screen.width, 60), "당신은 사망했습니다", big);
-            GUI.Label(new Rect(0, Screen.height * 0.4f + 60, Screen.width, 40),
+            GUI.Label(new Rect(0, UIScale.H * 0.4f, UIScale.W, 60), "당신은 사망했습니다", big);
+            GUI.Label(new Rect(0, UIScale.H * 0.4f + 60, UIScale.W, 40),
                 $"구미에서 {d}일 {h}시간 동안 생존했습니다.   [R] 다시 시작",
                 new GUIStyle(label) { alignment = TextAnchor.MiddleCenter, fontSize = 20 });
         }

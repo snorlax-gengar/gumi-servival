@@ -117,15 +117,16 @@ public class MinimapHUD : MonoBehaviour
     {
         if (iso.target == null) return;
         InitStyles();
+        UIScale.Apply();
         DrawCompass();
 
         Rect r = bigMap
-            ? CenterSquare(Mathf.Min(Screen.width, Screen.height) * 0.82f)
-            : new Rect(Screen.width - mapSize - 20, 50, mapSize, mapSize);
+            ? CenterSquare(Mathf.Min(UIScale.W, UIScale.H) * 0.82f)
+            : new Rect(UIScale.W - mapSize - 20, 48, mapSize, mapSize);
         DrawMap(r, bigMap ? bigRT : miniRT);
 
         if (showHelp)
-            GUI.Label(new Rect(Screen.width - 820, Screen.height - 30, 800, 24),
+            GUI.Label(new Rect(UIScale.W - 820, UIScale.H - 30, 800, 24),
                 "WASD 이동 · Shift 달리기 · Ctrl 웅크리기 · F 뒤지기 · 좌클릭 공격 · Q/E 회전 · 우클릭 드래그 시점 · 휠 줌 · M 지도 · F9 녹화", small);
     }
 
@@ -159,7 +160,7 @@ public class MinimapHUD : MonoBehaviour
             float mapUpYaw = bigMap ? 0f : iso.Yaw;
             float angle = iso.target.eulerAngles.y - mapUpYaw;
             Matrix4x4 saved = GUI.matrix;
-            GUIUtility.RotateAroundPivot(angle, pm);
+            GUIUtility.RotateAroundPivot(angle, pm * UIScale.S); // 피벗은 실제 화면 좌표 기준
             GUI.color = new Color(0.35f, 0.75f, 1f);
             GUI.DrawTexture(new Rect(pm.x - 9, pm.y - 9, 18, 18), arrow);
             GUI.matrix = saved;
@@ -190,7 +191,7 @@ public class MinimapHUD : MonoBehaviour
     void DrawCompass()
     {
         const float w = 420, h = 28;
-        var r = new Rect((Screen.width - w) / 2, 10, w, h);
+        var r = new Rect((UIScale.W - w) / 2, 10, w, h);
         GUI.color = new Color(0, 0, 0, 0.5f);
         GUI.DrawTexture(r, Texture2D.whiteTexture);
         GUI.color = Color.white;
@@ -211,7 +212,7 @@ public class MinimapHUD : MonoBehaviour
         GUI.color = Color.white;
     }
 
-    static Rect CenterSquare(float size) => new Rect((Screen.width - size) / 2, (Screen.height - size) / 2, size, size);
+    static Rect CenterSquare(float size) => new Rect((UIScale.W - size) / 2, (UIScale.H - size) / 2, size, size);
 
     // ================= 텍스처 =================
 

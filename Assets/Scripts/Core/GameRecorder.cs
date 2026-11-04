@@ -102,6 +102,7 @@ public class GameRecorder : MonoBehaviour
     void OnGUI()
     {
         if (!IsRecording) return;
+        UIScale.Apply();
         // 녹화 표시 (작게, 영상에도 들어감)
         float t = Time.unscaledTime - startTime;
         bool blink = Mathf.FloorToInt(t * 2) % 2 == 0;
