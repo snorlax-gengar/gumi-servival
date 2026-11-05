@@ -589,7 +589,8 @@ public partial class CityGenerator
     {
         var rot = Quaternion.LookRotation(n, Vector3.up);
         Kit.Box(t, center + n * (size.z * 0.5f + 0.02f), size, bg, rot: rot, name: "간판");
-        float hgt = Mathf.Min(size.y * 0.72f, size.x / Mathf.Max(2, text.Length + 1) * 1.45f);
+        // 한글 한 글자 폭 ≈ 글자 높이 → 판 안에 들어가게 (양옆 여백 반 글자씩)
+        float hgt = Mathf.Min(size.y * 0.72f, size.x / Mathf.Max(2, text.Length + 1) * 0.92f);
         Kit.Label(t, text, center + n * (size.z + 0.04f), Kit.Facing(n), hgt, fg);
     }
 

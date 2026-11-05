@@ -239,7 +239,12 @@ public class AndroidAI : MonoBehaviour
         if (player == null || (playerStats != null && playerStats.IsDead)) { GoPatrol(); return; }
 
         agent.speed = chaseSpeed;
-        float dist = Vector3.Distance(transform.position, player.position);
+        // 수평 거리 (안드로이드 중심은 지면 위 1.1m라 3D 거리로 재면 실제보다 멀게 나온다)
+        Vector3 flat = player.position - transform.position; flat.y = 0;
+        float dist = flat.magnitude;
+
+        // 사람 몸에 파고들지 않게 팔 길이쯤에서 멈춘다
+        if (dist < 1.25f && agent.enabled && agent.isOnNavMesh && agent.hasPath) agent.ResetPath();
 
         if (dist <= attackRange && sees)
         {
