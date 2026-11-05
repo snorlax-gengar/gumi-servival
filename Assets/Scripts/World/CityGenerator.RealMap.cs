@@ -473,10 +473,35 @@ public partial class CityGenerator
             int wv = hash % Facade.Variants(style), sv = (hash / 7) % Facade.SignVariants, rv = (hash / 13) % 4;
 
             var origin = new Vector3(c.x, 0, c.y);
-            var mb = new MeshBuilder(5);
-            float acc = 0f;
+            var mb = new MeshBuilder(7);   // 0 1층 상가 외벽, 1 외벽, 2 지붕, 3 옥상 난간, 4 옥상 물건, 5 실내 벽·천장, 6 실내 바닥
+
+            // 도로를 보는 벽 = 정면 (간판·현관을 붙인다)
             int front = -1;
             float frontScore = float.MaxValue;
+            for (int i = 0; i < pts.Count; i++)
+            {
+                Vector2 a = pts[i], e = pts[(i + 1) % pts.Count];
+                float L = (e - a).magnitude;
+                if (L <= 3f) continue;
+                Vector2 nn = new Vector2(e.y - a.y, -(e.x - a.x)) / L;
+                float score = RoadEdgeDist((a + e) * 0.5f + nn * 3f) - L * 0.05f;
+                if (score < frontScore) { frontScore = score; front = i; }
+            }
+
+            // 들어갈 수 있는 가게: 1층이 비어 있고 정면에 문이 난다 (좀보이드처럼 안을 뒤질 수 있다)
+            float area = Poly.SignedArea(pts);
+            List<Vector2> inner = null;
+            bool enter = store && !roofOnly && front >= 0 && pts.Count <= 14 && area >= 35f && area <= 700f
+                         && (pts[(front + 1) % pts.Count] - pts[front]).magnitude >= 3.4f;
+            if (enter)
+            {
+                inner = Poly.Inset(pts, 0.25f);
+                if (Poly.SignedArea(inner) < area * 0.55f) enter = false;
+            }
+            const float DoorW = 1.8f, DoorH = 2.4f;
+            float gh = Facade.ShopFloor;
+
+            float acc = 0f;
             for (int i = 0; i < pts.Count; i++)
             {
                 Vector2 a = pts[i], e = pts[(i + 1) % pts.Count];
@@ -485,18 +510,46 @@ public partial class CityGenerator
                 Vector3 n = new Vector3(e.y - a.y, 0, -(e.x - a.x)) / L;
                 Vector3 A = new Vector3(a.x - c.x, 0, a.y - c.y), E = new Vector3(e.x - c.x, 0, e.y - c.y);
                 float u0 = acc / Facade.BayWidth, u1 = (acc + L) / Facade.BayWidth;
+                float acc0 = acc;
                 acc += L;
-
-                // 도로를 보는 벽 = 정면 (간판·현관을 붙인다)
-                if (L > 3f)
-                {
-                    Vector2 mid = (a + e) * 0.5f + new Vector2(n.x, n.z) * 3f;
-                    float score = RoadEdgeDist(mid) - L * 0.05f;
-                    if (score < frontScore) { frontScore = score; front = i; }
-                }
                 if (roofOnly) continue;
 
-                if (store)
+                if (enter)
+                {
+                    Vector2 ai = inner[i], ei = inner[(i + 1) % pts.Count];
+                    Vector3 Ai = new Vector3(ai.x - c.x, 0, ai.y - c.y), Ei = new Vector3(ei.x - c.x, 0, ei.y - c.y);
+                    Vector3 up = Vector3.up * gh;
+                    if (i == front)
+                    {
+                        float t0 = (L - DoorW) * 0.5f, t1 = t0 + DoorW;
+                        Vector3 D0 = Vector3.Lerp(A, E, t0 / L), D1 = Vector3.Lerp(A, E, t1 / L);
+                        Vector3 I0 = Vector3.Lerp(Ai, Ei, t0 / L), I1 = Vector3.Lerp(Ai, Ei, t1 / L);
+                        float ud0 = (acc0 + t0) / Facade.BayWidth, ud1 = (acc0 + t1) / Facade.BayWidth, vd = DoorH / gh;
+                        Vector3 dh = Vector3.up * DoorH;
+                        mb.Quad(0, A, A + up, D0 + up, D0, n, new Vector2(u0, 0), new Vector2(u0, 1), new Vector2(ud0, 1), new Vector2(ud0, 0));
+                        mb.Quad(0, D1, D1 + up, E + up, E, n, new Vector2(ud1, 0), new Vector2(ud1, 1), new Vector2(u1, 1), new Vector2(u1, 0));
+                        mb.Quad(0, D0 + dh, D0 + up, D1 + up, D1 + dh, n, new Vector2(ud0, vd), new Vector2(ud0, 1), new Vector2(ud1, 1), new Vector2(ud1, vd));
+                        mb.Quad(5, I0, I0 + up, Ai + up, Ai, -n, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);
+                        mb.Quad(5, Ei, Ei + up, I1 + up, I1, -n, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);
+                        mb.Quad(5, I1 + dh, I1 + up, I0 + up, I0 + dh, -n, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);
+                        Vector3 dir = (E - A) / L;
+                        mb.Quad(5, D0, D0 + dh, I0 + dh, I0, dir, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);     // 문틀
+                        mb.Quad(5, I1, I1 + dh, D1 + dh, D1, -dir, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);
+                        mb.Quad(5, D0 + dh, I0 + dh, I1 + dh, D1 + dh, Vector3.down, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);
+                    }
+                    else
+                    {
+                        mb.Quad(0, A, A + up, E + up, E, n, new Vector2(u0, 0), new Vector2(u0, 1), new Vector2(u1, 1), new Vector2(u1, 0));
+                        mb.Quad(5, Ei, Ei + up, Ai + up, Ai, -n, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);
+                    }
+                    if (h > gh + 0.01f)
+                    {
+                        float v1 = (h - gh) / Facade.Floor;
+                        mb.Quad(1, A + up, A + Vector3.up * h, E + Vector3.up * h, E + up, n,
+                            new Vector2(u0, 0), new Vector2(u0, v1), new Vector2(u1, v1), new Vector2(u1, 0));
+                    }
+                }
+                else if (store)
                 {
                     float s = Facade.ShopFloor;
                     mb.Quad(0, A, A + Vector3.up * s, E + Vector3.up * s, E, n,
@@ -515,6 +568,11 @@ public partial class CityGenerator
                         new Vector2(u0, 0), new Vector2(u0, v1), new Vector2(u1, v1), new Vector2(u1, 0));
                 }
             }
+            if (enter)
+            {
+                mb.Polygon(5, inner, gh - 0.02f, origin, 0.25f, true);   // 천장
+                mb.Polygon(6, inner, 0.025f, origin, 0.5f);              // 실내 바닥
+            }
             mb.Polygon(2, pts, h, origin);
             if (!roofOnly && style != Facade.Style.House && pts.Count <= 48) RoofDetails(mb, pts, c, h, style, lv, hash);
             if (!roofOnly) TuftsAround(pts, hash);
@@ -528,7 +586,8 @@ public partial class CityGenerator
             }
 
             var mats = new[] { Facade.Storefront(sv), Facade.Wall(style, wv), Facade.Roof(style, rv),
-                               Kit.Mat(Facade.WallTint(style, wv) * 0.93f), Kit.Mat(Kit.Hex("BFC4C9")) };
+                               Kit.Mat(Facade.WallTint(style, wv) * 0.93f), Kit.Mat(Kit.Hex("BFC4C9")),
+                               Kit.Mat(Kit.Hex("D6D0C4")), SurfaceTextures.Pavers(Kit.Hex("C8C2B6"), "Floor_Tile") };
             string nm = !string.IsNullOrEmpty(b.n) ? b.n : (b.f == 1 ? "빌라" : b.k);
             var go = mb.Build(nm, BuildingParent(c), origin, mats, !roofOnly);
             if (go == null) continue;
@@ -581,9 +640,112 @@ public partial class CityGenerator
                 Kit.Label(t, realName, localMid + fn * 0.06f + Vector3.up * Mathf.Min(h - 0.8f, 5f), Kit.Facing(fn), 0.8f, Kit.Hex("2E3A48"));
             }
 
-            if (ground.Count > 0) PlaceShopLoot(ground, fmid, fn, fd, fl, hash);
+            if (enter) Interior(nm, c, inner, front, fn, ground, hash);
+            else if (ground.Count > 0) PlaceShopLoot(ground, fmid, fn, fd, fl, hash);
             else PlaceBuildingLoot(b, style, store, poi, fmid, fn, fd, fl, hash);
         }
+    }
+
+    // ================= 가게 안 =================
+
+    Transform interiorRoot;
+
+    /// <summary>
+    /// 들어갈 수 있는 가게 안: 벽을 따라 선반, 가운데는 업종에 따라 진열대 줄 또는 식탁, 안쪽에 뒤질 곳.
+    /// 가구는 건물(반투명 처리 대상)과 따로 두어 건물이 투명해져도 또렷하게 보인다.
+    /// </summary>
+    void Interior(string nm, Vector2 c, List<Vector2> inner, int front, Vector3 fn, List<MapShop> ground, int hash)
+    {
+        if (interiorRoot == null)
+        {
+            interiorRoot = new GameObject("구미_가게안").transform;
+            interiorRoot.SetParent(root, false);
+        }
+        var rnd = new System.Random(hash ^ 0x1e7);
+        var origin = new Vector3(c.x, 0, c.y);
+        var mb = new MeshBuilder(2);   // 0 금속 선반, 1 나무 탁자·계산대
+        string c0 = ground.Count > 0 ? (ground[0].c ?? "") : "", m0 = ground.Count > 0 ? (ground[0].m ?? "") : "";
+        bool food = m0.Contains("음식") || c0.Contains("카페") || c0.Contains("빵");
+
+        // 벽 따라 선반 (정면 벽 제외)
+        for (int i = 0; i < inner.Count; i++)
+        {
+            if (i == front) continue;
+            Vector2 a = inner[i], e = inner[(i + 1) % inner.Count];
+            float L = (e - a).magnitude;
+            if (L < 2.4f) continue;
+            Vector2 d = (e - a) / L, inward = new Vector2(-d.y, d.x);
+            float len = L - 1.4f;
+            Vector2 mid = (a + e) * 0.5f + inward * 0.32f;
+            float yaw = Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg;
+            float hgt = food ? 1.0f : 1.8f;
+            mb.Box(food ? 1 : 0, new Vector3(mid.x - c.x, hgt * 0.5f, mid.y - c.y), new Vector3(len, hgt, 0.5f), yaw);
+        }
+
+        // 가운데: 정면과 나란히
+        Vector2 fd = new Vector2(-fn.z, fn.x);   // 정면 벽 방향
+        float fyaw = Mathf.Atan2(-fd.y, fd.x) * Mathf.Rad2Deg;
+        Vector2 ctr = Poly.Centroid(inner);
+        Vector2 back = new Vector2(-fn.x, -fn.z);
+        if (food)
+        {
+            for (int gx = -2; gx <= 2; gx++)
+                for (int gz = -2; gz <= 2; gz++)
+                {
+                    Vector2 q = ctr + fd * (gx * 2.1f) + back * (gz * 2.1f);
+                    if (!InsideShrunk(inner, q, 1.1f)) continue;
+                    mb.Box(1, new Vector3(q.x - c.x, 0.37f, q.y - c.y), new Vector3(0.9f, 0.74f, 0.9f), fyaw);
+                }
+        }
+        else
+        {
+            for (int row = -1; row <= 1; row++)
+            {
+                Vector2 q = ctr + back * (row * 2.4f);
+                float len = 4f;
+                while (len >= 1.6f && !(InsideShrunk(inner, q + fd * (len * 0.5f), 1.0f) && InsideShrunk(inner, q - fd * (len * 0.5f), 1.0f))) len -= 0.8f;
+                if (len < 1.6f) continue;
+                mb.Box(0, new Vector3(q.x - c.x, 0.7f, q.y - c.y), new Vector3(len, 1.4f, 0.8f), fyaw);
+            }
+        }
+        var go = mb.Build(nm + " 안", interiorRoot, origin, new[] { Kit.Mat(Kit.Hex("8A9098")), Kit.Mat(Kit.Hex("7A5C40")) }, true);
+
+        // 뒤질 곳: 안쪽 깊숙이 (가게마다 하나, 최대 2곳)
+        int n = Mathf.Min(2, ground.Count);
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 q = ctr + back * 1.2f + fd * ((i - (n - 1) * 0.5f) * 2.2f);
+            if (!InsideShrunk(inner, q, 0.7f)) q = ctr;
+            var sp = ground[i];
+            string c1 = sp.c ?? "", m1 = sp.m ?? "";
+            string label = sp.n.Length > 10 ? sp.n.Substring(0, 10) : sp.n;
+            Vector3 pos = new Vector3(q.x, 0.45f, q.y);
+            var size = new Vector3(1.1f, 0.9f, 0.6f);
+            if (c1.Contains("편의점") || c1.Contains("슈퍼"))
+                Container(lootRoot, label + " 창고 상자", pos, size, (kimbap, 0.7f, 2), (ramen, 0.8f, 3), (water, 0.8f, 3), (coffee, 0.6f, 2), (bandage, 0.3f, 1));
+            else if (c1.Contains("약국") || m1.Contains("보건"))
+                Container(lootRoot, label + " 약장", pos, size, (bandage, 0.95f, 3), (water, 0.3f, 1));
+            else if (c1.Contains("카페") || c1.Contains("빵"))
+                Container(lootRoot, label + " 냉장고", pos, size, (coffee, 0.85f, 3), (water, 0.6f, 2), (kimbap, 0.25f, 1));
+            else if (m1.Contains("음식"))
+                Container(lootRoot, label + " 주방 식자재", pos, size, (ramen, 0.7f, 3), (kimbap, 0.5f, 2), (water, 0.6f, 2));
+            else if (c1.Contains("철물") || c1.Contains("정비") || c1.Contains("공구") || c1.Contains("자전거"))
+                Container(lootRoot, label + " 공구함", pos, size, (wrench, 0.6f, 1), (pipe, 0.7f, 1), (Fuel, c1.Contains("정비") ? 0.5f : 0.15f, 1));
+            else
+                Container(lootRoot, label + " 계산대 서랍", pos, size, (water, 0.5f, 1), (bandage, 0.3f, 1), (coffee, 0.3f, 1), (pipe, 0.1f, 1));
+        }
+    }
+
+    /// <summary>점 q가 다각형 안에 있고, 사방 r만큼 떨어진 점들도 안에 있는가</summary>
+    static bool InsideShrunk(List<Vector2> poly, Vector2 q, float r)
+    {
+        if (!Poly.Contains(poly, q)) return false;
+        for (int k = 0; k < 8; k++)
+        {
+            float ang = k * Mathf.PI * 0.25f;
+            if (!Poly.Contains(poly, q + new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * r)) return false;
+        }
+        return true;
     }
 
     // ================= 옥상 · 풀 =================

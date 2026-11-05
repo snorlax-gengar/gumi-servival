@@ -26,7 +26,9 @@ public class AndroidAI : MonoBehaviour
 
     [Header("추적/공격")]
     public float chaseSpeed = 3.2f;   // 플레이어 걷기(3.5)보다 약간 느림, 달리면 따돌릴 수 있음
-    public float attackRange = 1.6f;
+    public float attackRange = 1.15f;    // 수평 거리. 이 안에 들어와야 주먹을 휘두른다
+    public float hitReach = 1.45f;       // 주먹이 닿는 순간 이 거리 안에 있어야 맞는다 (뒤로 빠지면 피함)
+    public float hitDelay = 0.45f;       // 휘두르기 시작 → 맞는 순간
     public float attackDamage = 18f;
     public float attackCooldown = 1.5f;
     public float loseSightTime = 4f;
@@ -58,6 +60,7 @@ public class AndroidAI : MonoBehaviour
     bool hasPendingNoise;
 
     public bool IsStunned => stunTimer > 0;
+    float pendingHit;
     AndroidVisual visual;
 
     /// <summary>이 위치에서 공격하면 기습이 되는가 (나를 못 알아챘고, 등 뒤에서)</summary>
@@ -139,6 +142,17 @@ public class AndroidAI : MonoBehaviour
         if (CurrentState == State.Disabled || !agent.enabled || !agent.isOnNavMesh) return;
         attackTimer -= Time.deltaTime;
         alertTimer -= Time.deltaTime;
+
+        // 휘두른 주먹이 닿는 순간: 그때도 가까이 있어야 맞는다
+        if (pendingHit > 0f)
+        {
+            pendingHit -= Time.deltaTime;
+            if (pendingHit <= 0f && stunTimer <= 0 && player != null)
+            {
+                Vector3 f = player.position - transform.position; f.y = 0;
+                if (f.magnitude <= hitReach) playerStats?.TakeDamage(attackDamage);
+            }
+        }
 
         if (stunTimer > 0)
         {
@@ -244,7 +258,7 @@ public class AndroidAI : MonoBehaviour
         float dist = flat.magnitude;
 
         // 사람 몸에 파고들지 않게 팔 길이쯤에서 멈춘다
-        if (dist < 1.25f && agent.enabled && agent.isOnNavMesh && agent.hasPath) agent.ResetPath();
+        if (dist < 1.0f && agent.enabled && agent.isOnNavMesh && agent.hasPath) agent.ResetPath();
 
         if (dist <= attackRange && sees)
         {
@@ -255,7 +269,7 @@ public class AndroidAI : MonoBehaviour
             if (attackTimer <= 0)
             {
                 attackTimer = attackCooldown;
-                playerStats?.TakeDamage(attackDamage);
+                pendingHit = hitDelay;
                 if (visual != null) visual.PlayAttack();
                 NoiseSystem.Emit(transform.position, 6f);
             }

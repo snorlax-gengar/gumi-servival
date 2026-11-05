@@ -82,14 +82,15 @@ public class MeshBuilder
     // ---------------- 평면 도형 ----------------
 
     /// <summary>바닥에 깔리는 다각형 (위를 보는 면)</summary>
-    public void Polygon(int sub, IList<Vector2> pts, float y, Vector3 origin, float uvScale = 0.1f)
+    public void Polygon(int sub, IList<Vector2> pts, float y, Vector3 origin, float uvScale = 0.1f, bool facingDown = false)
     {
         var tris = Poly.Triangulate(pts);
         int start = verts.Count;
+        Vector3 nrm = facingDown ? Vector3.down : Vector3.up;
         for (int i = 0; i < pts.Count; i++)
-            V(new Vector3(pts[i].x - origin.x, y, pts[i].y - origin.z), Vector3.up, pts[i] * uvScale);
+            V(new Vector3(pts[i].x - origin.x, y, pts[i].y - origin.z), nrm, pts[i] * uvScale);
         for (int i = 0; i + 2 < tris.Count; i += 3)
-            Tri(sub, start + tris[i], start + tris[i + 1], start + tris[i + 2], Vector3.up);
+            Tri(sub, start + tris[i], start + tris[i + 1], start + tris[i + 2], nrm);
     }
 
     /// <summary>
