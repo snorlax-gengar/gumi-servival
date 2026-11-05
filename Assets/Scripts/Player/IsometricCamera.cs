@@ -48,6 +48,10 @@ public class IsometricCamera : MonoBehaviour
 
     void Awake()
     {
+        // 미니맵 전용 아이콘(출입구 등)은 본 화면에서 안 보이게
+        var mainCam = GetComponent<Camera>();
+        if (mainCam != null) mainCam.cullingMask &= ~(1 << CityGenerator.MapOnlyLayer);
+
         if (zomboidView)
         {
             var cam = GetComponent<Camera>();

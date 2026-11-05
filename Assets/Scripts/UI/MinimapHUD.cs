@@ -139,6 +139,9 @@ public class MinimapHUD : MonoBehaviour
             var att = new GUIStyle(small) { fontSize = 11, alignment = TextAnchor.UpperRight };
             Rect ar = bigMap ? new Rect(r.xMax - 400, r.yMax + 4, 400, 18) : new Rect(r.xMax - 400, r.yMax + 2, 400, 18);
             GUI.Label(ar, "지도 " + CityGenerator.MapAttribution, att);
+            var legend = new GUIStyle(att) { fontSize = 12 };
+            legend.normal.textColor = new Color(0.44f, 0.88f, 0.72f);
+            GUI.Label(new Rect(ar.x, ar.y + 16, ar.width, 18), "■ 민트 = 들어갈 수 있는 가게", legend);
         }
 
         if (showHelp)

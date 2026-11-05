@@ -72,6 +72,7 @@ public partial class CityGenerator
         BuildRealBuildings();
         BuildRealTrees();
         BuildRealTufts();
+        BuildDoorMarkers();
         BuildRealStreetFurniture();
         Debug.Log($"[Gumi] 실제 구미 지도 생성: 건물 {real.buildings.Length}, 도로 {real.roads.Length}, 나무 {(real.trees != null ? real.trees.Length / 3 : 0)} ({Time.realtimeSinceStartup - t0:0.0}초)");
         return true;
@@ -526,6 +527,7 @@ public partial class CityGenerator
                         Vector3 I0 = Vector3.Lerp(Ai, Ei, t0 / L), I1 = Vector3.Lerp(Ai, Ei, t1 / L);
                         float ud0 = (acc0 + t0) / Facade.BayWidth, ud1 = (acc0 + t1) / Facade.BayWidth, vd = DoorH / gh;
                         Vector3 dh = Vector3.up * DoorH;
+                        doorMarks.Add(new DoorMark { a = origin + D0, b = origin + D1, n = n });
                         mb.Quad(0, A, A + up, D0 + up, D0, n, new Vector2(u0, 0), new Vector2(u0, 1), new Vector2(ud0, 1), new Vector2(ud0, 0));
                         mb.Quad(0, D1, D1 + up, E + up, E, n, new Vector2(ud1, 0), new Vector2(ud1, 1), new Vector2(u1, 1), new Vector2(u1, 0));
                         mb.Quad(0, D0 + dh, D0 + up, D1 + up, D1 + dh, n, new Vector2(ud0, vd), new Vector2(ud0, 1), new Vector2(ud1, 1), new Vector2(ud1, vd));
@@ -649,6 +651,60 @@ public partial class CityGenerator
     // ================= 가게 안 =================
 
     Transform interiorRoot;
+
+    struct DoorMark { public Vector3 a, b, n; }
+    readonly List<DoorMark> doorMarks = new List<DoorMark>();
+    /// <summary>미니맵 카메라만 보는 레이어 (출입구 아이콘)</summary>
+    public const int MapOnlyLayer = 30;
+
+    /// <summary>
+    /// 들어갈 수 있는 건물 표시: 문 둘레에 민트색으로 빛나는 문틀, 문 앞 발판,
+    /// 그리고 미니맵·전체 지도에만 보이는 출입구 아이콘. (주황 = 뒤질 것, 빨강 = 안드로이드, 민트 = 들어갈 수 있는 곳)
+    /// </summary>
+    void BuildDoorMarkers()
+    {
+        if (doorMarks.Count == 0) return;
+        var glowChunks = new Dictionary<long, MeshBuilder>();
+        var mapChunks = new Dictionary<long, MeshBuilder>();
+        foreach (var d in doorMarks)
+        {
+            Vector3 mid = (d.a + d.b) * 0.5f;
+            int ci = Cell(mid.x, Chunk), cj = Cell(mid.z, Chunk);
+            long k = Key(ci, cj);
+            Vector3 o = new Vector3(ci * Chunk, 0, cj * Chunk);
+            if (!glowChunks.TryGetValue(k, out var g)) glowChunks[k] = g = new MeshBuilder(2);
+            if (!mapChunks.TryGetValue(k, out var mp)) mapChunks[k] = mp = new MeshBuilder(1);
+
+            Vector3 dir = (d.b - d.a); float w = dir.magnitude; dir /= Mathf.Max(0.01f, w);
+            float yaw = Mathf.Atan2(-dir.z, dir.x) * Mathf.Rad2Deg;
+            Vector3 out1 = d.n * 0.05f;
+            const float H = 2.4f, t = 0.09f;
+            g.Box(0, d.a - o + out1 + Vector3.up * H * 0.5f, new Vector3(t, H, t), yaw);          // 왼쪽 문틀
+            g.Box(0, d.b - o + out1 + Vector3.up * H * 0.5f, new Vector3(t, H, t), yaw);          // 오른쪽
+            g.Box(0, mid - o + out1 + Vector3.up * (H + t * 0.5f), new Vector3(w + t * 2f, t, t), yaw); // 위
+            g.Box(1, mid - o + d.n * 0.55f + Vector3.up * 0.04f, new Vector3(w, 0.03f, 0.9f), yaw);   // 발판
+
+            // 미니맵 아이콘: 문 앞 공중에 민트색 문 모양 (화살표 없이 굵은 ㄷ자)
+            Vector3 c = mid - o + d.n * 2.2f + Vector3.up * 45f;
+            mp.Box(0, c, new Vector3(3.2f, 0.2f, 3.2f), yaw);
+        }
+        var parent = new GameObject("구미_출입구").transform;
+        parent.SetParent(root, false);
+        var glowMats = new[] { Kit.Mat(Kit.Hex("6FE0B8"), 2.2f), Kit.Mat(Kit.Hex("2F5A4A")) };
+        var mapMats = new[] { Kit.Mat(Kit.Hex("6FE0B8"), 1.5f) };
+        foreach (var kv in glowChunks)
+        {
+            int ci = (int)(kv.Key >> 32), cj = (int)(uint)kv.Key;
+            kv.Value.Build($"출입구_{ci}_{cj}", parent, new Vector3(ci * Chunk, 0, cj * Chunk), glowMats, false, false);
+        }
+        foreach (var kv in mapChunks)
+        {
+            int ci = (int)(kv.Key >> 32), cj = (int)(uint)kv.Key;
+            var go = kv.Value.Build($"출입구지도_{ci}_{cj}", parent, new Vector3(ci * Chunk, 0, cj * Chunk), mapMats, false, false);
+            if (go != null) go.layer = MapOnlyLayer;
+        }
+        Debug.Log($"[Gumi] 들어갈 수 있는 가게 {doorMarks.Count}곳");
+    }
 
     /// <summary>
     /// 들어갈 수 있는 가게 안: 벽을 따라 선반, 가운데는 업종에 따라 진열대 줄 또는 식탁, 안쪽에 뒤질 곳.
