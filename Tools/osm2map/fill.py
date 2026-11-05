@@ -1,5 +1,7 @@
 """Add procedural filler buildings along streets where OSM has no buildings, and pick the safehouse."""
-import json, math, random, sys
+import json, math, random, sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from junctions import junctions, junction_grid, near_junction
 m = json.load(open(sys.argv[1]))
 rng = random.Random(1979)
 CELL = 20.0
@@ -52,7 +54,9 @@ def poly_overlap(A, B):
             pa = [nx * x + nz * z for x, z in A]; pb = [nx * x + nz * z for x, z in B]
             if max(pa) < min(pb) or max(pb) < min(pa): return False
     return True
+JG = junction_grid(junctions(m))
 def free(poly, margin=1.0):
+    if near_junction(JG, list(poly)): return False
     cx = sum(p[0] for p in poly) / 4; cz = sum(p[1] for p in poly) / 4
     k = key(cx, cz)
     for i in range(k[0] - 2, k[0] + 3):

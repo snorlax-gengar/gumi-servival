@@ -1,5 +1,7 @@
 """소상공인 상가(상권)정보 → 건물에 실제 상호·층 정보 붙이기. 매칭되는 건물이 없으면 도로를 보는 건물을 새로 세운다."""
-import csv, json, math, sys, random, collections
+import csv, json, math, sys, random, collections, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from junctions import junctions, junction_grid, near_junction
 m = json.load(open(sys.argv[1]))
 LAT0, LON0 = m['lat0'], m['lon0']
 KX = math.cos(math.radians(LAT0)) * 111320.0; KZ = 110540.0
@@ -94,7 +96,9 @@ for ar in m['areas']:
     for i in range(int(math.floor(min(xs) / CELL)), int(math.floor(max(xs) / CELL)) + 1):
         for j in range(int(math.floor(min(zs) / CELL)), int(math.floor(max(zs) / CELL)) + 1):
             agrid[(i, j)].append(P)
+JG = junction_grid(junctions(m))
 def free(poly):
+    if near_junction(JG, list(poly)): return False
     cx = sum(q[0] for q in poly) / 4; cz = sum(q[1] for q in poly) / 4
     for q in poly + [(cx, cz)]:
         for P in agrid.get(ck(q[0], q[1]), []):
