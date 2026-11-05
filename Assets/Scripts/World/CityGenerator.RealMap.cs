@@ -71,6 +71,7 @@ public partial class CityGenerator
         BuildRealFlat();
         BuildRealBuildings();
         BuildRealTrees();
+        BuildRealTufts();
         BuildRealStreetFurniture();
         Debug.Log($"[Gumi] 실제 구미 지도 생성: 건물 {real.buildings.Length}, 도로 {real.roads.Length}, 나무 {(real.trees != null ? real.trees.Length / 3 : 0)} ({Time.realtimeSinceStartup - t0:0.0}초)");
         return true;
@@ -184,7 +185,8 @@ public partial class CityGenerator
     readonly Dictionary<long, MeshBuilder> flatChunks = new Dictionary<long, MeshBuilder>();
     Material[] flatMats;
     const int F_ASPH = 0, F_ASPH2 = 1, F_PAVER = 2, F_YELLOW = 3, F_WHITE = 4, F_WATER = 5, F_PARK = 6, F_GRASS = 7, F_FARM = 8,
-              F_PITCH = 9, F_PARKING = 10, F_DIRT = 11, F_PLAZA = 12, F_GRAVEL = 13, F_STEEL = 14, F_WOOD = 15, F_PLATFORM = 16, F_COUNT = 17;
+              F_PITCH = 9, F_PARKING = 10, F_DIRT = 11, F_PLAZA = 12, F_GRAVEL = 13, F_STEEL = 14, F_WOOD = 15, F_PLATFORM = 16,
+              F_SIDEWALK = 17, F_CURB = 18, F_COUNT = 19;
 
     MeshBuilder FlatAt(Vector2 p, out Vector3 origin)
     {
@@ -237,22 +239,24 @@ public partial class CityGenerator
     void BuildRealFlat()
     {
         flatMats = new Material[F_COUNT];
-        flatMats[F_ASPH] = Kit.Mat(Kit.Hex("3A3D42"));
-        flatMats[F_ASPH2] = Kit.Mat(Kit.Hex("2E3135"));
-        flatMats[F_PAVER] = Kit.Mat(Kit.Hex("A39A8C"));
+        flatMats[F_ASPH] = SurfaceTextures.Asphalt(Kit.Hex("3E4146"), "Asphalt_Alley");
+        flatMats[F_ASPH2] = SurfaceTextures.Asphalt(Kit.Hex("33363B"), "Asphalt_Main");
+        flatMats[F_PAVER] = SurfaceTextures.Pavers(Kit.Hex("A39A8C"), "Pavers_Path");
+        flatMats[F_SIDEWALK] = SurfaceTextures.Pavers(Kit.Hex("B3A99A"), "Pavers_Sidewalk");
+        flatMats[F_CURB] = Kit.Mat(Kit.Hex("C9C4BA"));
         flatMats[F_YELLOW] = Kit.Mat(Kit.Hex("E8B830"));
         flatMats[F_WHITE] = Kit.Mat(Kit.Hex("E6E6E0"));
         flatMats[F_WATER] = Shiny(Kit.Hex("4C7894"), 0.88f);
-        flatMats[F_PARK] = Kit.Mat(Kit.Hex("6E9450"));
-        flatMats[F_GRASS] = Kit.Mat(Kit.Hex("7E9A5A"));
-        flatMats[F_FARM] = Kit.Mat(Kit.Hex("9A9262"));
-        flatMats[F_PITCH] = Kit.Mat(Kit.Hex("5E8E4A"));
-        flatMats[F_PARKING] = Kit.Mat(Kit.Hex("55585C"));
-        flatMats[F_DIRT] = Kit.Mat(Kit.Hex("B89F78"));
-        flatMats[F_PLAZA] = Kit.Mat(Kit.Hex("B5AEA2"));
+        flatMats[F_PARK] = SurfaceTextures.Grass(Kit.Hex("5E7E42"), Kit.Hex("7A7A4E"), "Grass_Park");
+        flatMats[F_GRASS] = SurfaceTextures.Grass(Kit.Hex("6E8A4E"), Kit.Hex("8A8456"), "Grass_Wild");
+        flatMats[F_FARM] = SurfaceTextures.Grass(Kit.Hex("8A8456"), Kit.Hex("6E5E40"), "Farm");
+        flatMats[F_PITCH] = SurfaceTextures.Grass(Kit.Hex("557E44"), Kit.Hex("62864C"), "Pitch");
+        flatMats[F_PARKING] = SurfaceTextures.Asphalt(Kit.Hex("4E5156"), "Asphalt_Parking");
+        flatMats[F_DIRT] = SurfaceTextures.Grass(Kit.Hex("B09872"), Kit.Hex("9C8662"), "Dirt");
+        flatMats[F_PLAZA] = SurfaceTextures.Pavers(Kit.Hex("B5AEA2"), "Pavers_Plaza");
         flatMats[F_GRAVEL] = Kit.Mat(Kit.Hex("7A7168"));
         flatMats[F_STEEL] = Shiny(Kit.Hex("8A8F96"), 0.7f);
-        flatMats[F_WOOD] = Kit.Mat(Kit.Hex("4A5E38"));
+        flatMats[F_WOOD] = SurfaceTextures.Grass(Kit.Hex("3E5030"), Kit.Hex("5A5438"), "Forest_Floor");
         flatMats[F_PLATFORM] = Kit.Mat(Kit.Hex("C9C2B6"));
 
         // --- 면 ---
@@ -278,7 +282,7 @@ public partial class CityGenerator
                     default: continue;
                 }
                 var mb = FlatAt(Poly.Centroid(p), out var o);
-                mb.Polygon(m, p, y, o);
+                mb.Polygon(m, p, y, o, m == F_PLAZA || m == F_PLATFORM ? 0.3f : m == F_PARKING ? 0.12f : 0.1f);
             }
 
         // --- 하천·철길 ---
@@ -333,6 +337,24 @@ public partial class CityGenerator
             mb.Strip(m, p, hw, y, o, 0f, hws);
             mb.Disc(m, p[0], hws[0], y, o);
             mb.Disc(m, p[p.Count - 1], hws[hws.Count - 1], y, o);
+
+            // 인도 + 연석: 도로보다 살짝 아래 높이로 깔아서 교차로에서는 도로가 덮는다
+            bool walkSide = (Major(r.t) && r.t != "motorway" && r.t != "motorway_link") || ((r.t == "residential" || r.t == "unclassified") && r.w >= 6.5f);
+            if (walkSide && r.b == 0)
+            {
+                float sw = Major(r.t) ? 3.2f : 1.8f;
+                var offL = new List<float>(p.Count); var offR = new List<float>(p.Count);
+                var curbL = new List<float>(p.Count); var curbR = new List<float>(p.Count);
+                foreach (var v in hws)
+                {
+                    offL.Add(v + sw * 0.5f); offR.Add(-v - sw * 0.5f);
+                    curbL.Add(v + 0.1f); curbR.Add(-v - 0.1f);
+                }
+                mb.Strip(F_SIDEWALK, p, sw * 0.5f, 0.021f, o, 0f, null, offL);
+                mb.Strip(F_SIDEWALK, p, sw * 0.5f, 0.021f, o, 0f, null, offR);
+                mb.Strip(F_CURB, p, 0.11f, 0.023f, o, 0f, null, curbL);
+                mb.Strip(F_CURB, p, 0.11f, 0.023f, o, 0f, null, curbR);
+            }
 
             float ly = y + 0.004f;
             var edgeL = new List<float>(p.Count);
@@ -451,7 +473,7 @@ public partial class CityGenerator
             int wv = hash % Facade.Variants(style), sv = (hash / 7) % Facade.SignVariants, rv = (hash / 13) % 4;
 
             var origin = new Vector3(c.x, 0, c.y);
-            var mb = new MeshBuilder(3);
+            var mb = new MeshBuilder(5);
             float acc = 0f;
             int front = -1;
             float frontScore = float.MaxValue;
@@ -494,6 +516,8 @@ public partial class CityGenerator
                 }
             }
             mb.Polygon(2, pts, h, origin);
+            if (!roofOnly && style != Facade.Style.House && pts.Count <= 48) RoofDetails(mb, pts, c, h, style, lv, hash);
+            if (!roofOnly) TuftsAround(pts, hash);
             if (roofOnly)
             {
                 // 주유소·주차장 지붕: 아래쪽 면도 만든다
@@ -503,7 +527,8 @@ public partial class CityGenerator
                 for (int i = 0; i + 2 < tris.Count; i += 3) mb.Tri(2, start + tris[i], start + tris[i + 1], start + tris[i + 2], Vector3.down);
             }
 
-            var mats = new[] { Facade.Storefront(sv), Facade.Wall(style, wv), Facade.Roof(style, rv) };
+            var mats = new[] { Facade.Storefront(sv), Facade.Wall(style, wv), Facade.Roof(style, rv),
+                               Kit.Mat(Facade.WallTint(style, wv) * 0.93f), Kit.Mat(Kit.Hex("BFC4C9")) };
             string nm = !string.IsNullOrEmpty(b.n) ? b.n : (b.f == 1 ? "빌라" : b.k);
             var go = mb.Build(nm, BuildingParent(c), origin, mats, !roofOnly);
             if (go == null) continue;
@@ -559,6 +584,133 @@ public partial class CityGenerator
             if (ground.Count > 0) PlaceShopLoot(ground, fmid, fn, fd, fl, hash);
             else PlaceBuildingLoot(b, style, store, poi, fmid, fn, fd, fl, hash);
         }
+    }
+
+    // ================= 옥상 · 풀 =================
+
+    /// <summary>옥상 난간(벽을 0.85m 더 올리고 안쪽 면·윗면) + 물탱크·실외기·계단실</summary>
+    void RoofDetails(MeshBuilder mb, List<Vector2> pts, Vector2 c, float h, Facade.Style style, int lv, int hash)
+    {
+        const float ph = 0.85f, t = 0.22f;
+        var inner = Poly.Inset(pts, t);
+        float top = h + ph;
+        for (int i = 0; i < pts.Count; i++)
+        {
+            int j = (i + 1) % pts.Count;
+            Vector2 a = pts[i], e = pts[j], ai = inner[i], ei = inner[j];
+            float L = (e - a).magnitude;
+            if (L < 0.05f) continue;
+            Vector3 n = new Vector3(e.y - a.y, 0, -(e.x - a.x)) / L;
+            Vector3 A = new Vector3(a.x - c.x, h, a.y - c.y), E = new Vector3(e.x - c.x, h, e.y - c.y);
+            Vector3 Ai = new Vector3(ai.x - c.x, h, ai.y - c.y), Ei = new Vector3(ei.x - c.x, h, ei.y - c.y);
+            Vector3 up = Vector3.up * ph;
+            mb.Quad(3, A, A + up, E + up, E, n, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);          // 바깥
+            mb.Quad(3, Ei, Ei + up, Ai + up, Ai, -n, Vector2.zero, Vector2.up, Vector2.one, Vector2.right);     // 안쪽
+            mb.Quad(3, A + up, Ai + up, Ei + up, E + up, Vector3.up, Vector2.zero, Vector2.up, Vector2.one, Vector2.right); // 윗면
+        }
+
+        // 옥상 물건: 안쪽 다각형 안에 들어가는 자리만
+        var rnd = new System.Random(hash);
+        Vector2 ctr = Poly.Centroid(inner);
+        float yaw = Mathf.Atan2(pts[1].x - pts[0].x, pts[1].y - pts[0].y) * Mathf.Rad2Deg;
+        int items = style == Facade.Style.Apt ? 3 : style == Facade.Style.Office || style == Facade.Style.Shop ? 3 : 2;
+        for (int k = 0; k < items; k++)
+        {
+            Vector2 q = ctr + new Vector2((float)rnd.NextDouble() - 0.5f, (float)rnd.NextDouble() - 0.5f) * 6f;
+            Vector3 size;
+            if (k == 0 && style == Facade.Style.Apt && lv >= 6) size = new Vector3(4f, 3f, 4f);           // 계단·승강기실
+            else if (k == 0 && rnd.NextDouble() < 0.6) size = new Vector3(1.4f, 1.5f, 1.4f);            // 물탱크
+            else size = new Vector3(0.9f, 0.65f, 0.5f);                                               // 실외기
+            float rad = Mathf.Max(size.x, size.z) * 0.75f;
+            if (!Poly.Contains(inner, q) || !Poly.Contains(inner, q + new Vector2(rad, 0)) || !Poly.Contains(inner, q - new Vector2(rad, 0))
+                || !Poly.Contains(inner, q + new Vector2(0, rad)) || !Poly.Contains(inner, q - new Vector2(0, rad))) continue;
+            mb.Box(4, new Vector3(q.x - c.x, h + size.y * 0.5f, q.y - c.y), size, yaw);
+        }
+    }
+
+    readonly Dictionary<long, MeshBuilder> tuftChunks = new Dictionary<long, MeshBuilder>();
+    int tuftCount;
+    const int MaxTufts = 45000;
+
+    void AddTuft(Vector2 p, System.Random rnd, float scale = 1f)
+    {
+        if (tuftCount >= MaxTufts) return;
+        int i = Cell(p.x, Chunk), j = Cell(p.y, Chunk);
+        long k = Key(i, j);
+        if (!tuftChunks.TryGetValue(k, out var mb)) tuftChunks[k] = mb = new MeshBuilder(1);
+        float s = (0.7f + (float)rnd.NextDouble() * 0.7f) * scale;
+        mb.Tuft(0, new Vector3(p.x - i * Chunk, 0f, p.y - j * Chunk), 0.75f * s, 0.5f * s, (float)rnd.NextDouble() * 180f);
+        tuftCount++;
+    }
+
+    /// <summary>건물 벽 밑 틈새로 자란 풀 (사람이 떠난 지 오래된 거리)</summary>
+    void TuftsAround(List<Vector2> pts, int hash)
+    {
+        var rnd = new System.Random(hash ^ 0x7a11);
+        for (int i = 0; i < pts.Count; i++)
+        {
+            Vector2 a = pts[i], e = pts[(i + 1) % pts.Count];
+            float L = (e - a).magnitude;
+            if (L < 1f) continue;
+            Vector2 d = (e - a) / L, n = new Vector2(d.y, -d.x);
+            for (float t = rnd.Next(0, 2); t < L; t += 1.8f)
+                if (rnd.NextDouble() < 0.32) AddTuft(a + d * t + n * (0.15f + (float)rnd.NextDouble() * 0.35f), rnd);
+        }
+    }
+
+    /// <summary>풀: 골목 가장자리, 공원·풀밭 (청크별로 한 메시)</summary>
+    void BuildRealTufts()
+    {
+        var rnd = new System.Random(UsedSeed ^ 0x6a55);
+        foreach (var r in real.roads)
+        {
+            if (r.tu == 1 || r.t == "motorway" || r.t == "motorway_link") continue;
+            var p = Pts(r.p);
+            bool alley = r.t == "residential" || r.t == "living_street" || r.t == "service" || r.t == "unclassified" || r.t == "path" || r.t == "track";
+            float prob = alley ? 0.28f : 0.08f;
+            for (int i = 0; i + 1 < p.Count; i++)
+            {
+                Vector2 a = p[i], b = p[i + 1];
+                float L = (b - a).magnitude;
+                if (L < 0.5f) continue;
+                Vector2 d = (b - a) / L, n = new Vector2(-d.y, d.x);
+                float hw = RoadHalfW(r, i, i + 1);
+                for (float t = 0; t < L; t += 2.2f)
+                    for (int side = -1; side <= 1; side += 2)
+                        if (rnd.NextDouble() < prob)
+                        {
+                            Vector2 q = a + d * t + n * side * (hw + (Major(r.t) ? 3.3f : 0.2f) + (float)rnd.NextDouble() * 0.4f);
+                            if (!InsideBuilding(q)) AddTuft(q, rnd);
+                        }
+            }
+        }
+        if (real.areas != null)
+            foreach (var ar in real.areas)
+            {
+                if (ar.k != "park" && ar.k != "grass" && ar.k != "wood" && ar.k != "farm") continue;
+                var p = Pts(ar.p);
+                if (p.Count < 3) continue;
+                float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+                foreach (var q in p) { minX = Mathf.Min(minX, q.x); maxX = Mathf.Max(maxX, q.x); minZ = Mathf.Min(minZ, q.y); maxZ = Mathf.Max(maxZ, q.y); }
+                float step = ar.k == "wood" ? 5f : 3.2f;
+                for (float x = minX; x < maxX; x += step)
+                    for (float z = minZ; z < maxZ; z += step)
+                    {
+                        var q = new Vector2(x + (float)rnd.NextDouble() * step, z + (float)rnd.NextDouble() * step);
+                        if (rnd.NextDouble() < 0.6 && Poly.Contains(p, q)) AddTuft(q, rnd, 1.25f);
+                    }
+            }
+
+        var parent = new GameObject("구미_풀").transform;
+        parent.SetParent(root, false);
+        var mats = new[] { SurfaceTextures.Tuft() };
+        foreach (var kv in tuftChunks)
+        {
+            int ci = (int)(kv.Key >> 32), cj = (int)(uint)kv.Key;
+            var go = kv.Value.Build($"풀_{ci}_{cj}", parent, new Vector3(ci * Chunk, 0, cj * Chunk), mats, false, false);
+        }
+        tuftChunks.Clear();
+        Debug.Log($"[Gumi] 풀 포기 {tuftCount}개");
     }
 
     // ================= 실제 가게 간판 =================

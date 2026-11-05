@@ -89,6 +89,9 @@ public static class Facade
 
     const int W = 256, H = 128;   // 2칸 × 1층
 
+    /// <summary>이 스타일·변형의 바탕 벽색 (옥상 난간 등에 씀)</summary>
+    public static Color WallTint(Style s, int v) => WallColor(s, v);
+
     static Color WallColor(Style s, int v)
     {
         switch (s)

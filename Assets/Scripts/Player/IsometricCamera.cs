@@ -29,6 +29,11 @@ public class IsometricCamera : MonoBehaviour
     public float snapStep = 90f;           // Q/E 한 번에 도는 각도
     public float rotateSmooth = 12f;
 
+    [Header("좀보이드식 시점")]
+    [Tooltip("좁은 화각으로 멀리서 내려다봐서 원근 왜곡이 적은 아이소메트릭 느낌")]
+    public bool zomboidView = true;
+    public float zomboidFov = 24f;
+
     [Header("가림 처리")]
     public bool hideOccluders = true;
     public float occluderRadius = 0.6f;
@@ -43,6 +48,20 @@ public class IsometricCamera : MonoBehaviour
 
     void Awake()
     {
+        if (zomboidView)
+        {
+            var cam = GetComponent<Camera>();
+            if (cam != null)
+            {
+                // 화각을 좁힌 만큼 멀리 둔다 (화면에 보이는 범위는 비슷하게)
+                float k = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Tan(zomboidFov * 0.5f * Mathf.Deg2Rad);
+                cam.fieldOfView = zomboidFov;
+                cam.farClipPlane = Mathf.Max(cam.farClipPlane, 600f);
+                distance *= k; minDistance *= k; maxDistance *= k; zoomStep *= k;
+                pitch = 42f;
+                minPitch = 28f; maxPitch = 70f;
+            }
+        }
         currentYaw = yaw;
         currentPitch = pitch;
         if (GetComponent<MinimapHUD>() == null) gameObject.AddComponent<MinimapHUD>();
@@ -72,6 +91,17 @@ public class IsometricCamera : MonoBehaviour
         transform.rotation = rot;
 
         if (hideOccluders) UpdateOccluders(focus);
+
+        // 안개·그림자 거리는 카메라가 멀어진 만큼 밀어 준다 (플레이어 주변은 선명하게)
+        float camDist = Vector3.Distance(transform.position, focus);
+        RenderSettings.fogStartDistance = camDist + 12f;
+        RenderSettings.fogEndDistance = camDist + GameManager.FogDepth;
+        var urp = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+        if (urp != null)
+        {
+            float sd = camDist + 45f;
+            if (Mathf.Abs(urp.shadowDistance - sd) > 5f) urp.shadowDistance = sd;
+        }
     }
 
     void HandleInput()

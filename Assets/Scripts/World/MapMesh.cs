@@ -171,17 +171,55 @@ public class MeshBuilder
 
     public void Disc(int sub, Vector2 c, float r, float y, Vector3 origin, int segs = 10)
     {
-        int center = V(new Vector3(c.x - origin.x, y, c.y - origin.z), Vector3.up, Vector2.zero);
+        int center = V(new Vector3(c.x - origin.x, y, c.y - origin.z), Vector3.up, new Vector2(0.5f, 0.5f));
         int first = -1, prev = -1;
         for (int i = 0; i < segs; i++)
         {
             float a = i / (float)segs * Mathf.PI * 2f;
-            int k = V(new Vector3(c.x + Mathf.Cos(a) * r - origin.x, y, c.y + Mathf.Sin(a) * r - origin.z), Vector3.up, Vector2.zero);
+            int k = V(new Vector3(c.x + Mathf.Cos(a) * r - origin.x, y, c.y + Mathf.Sin(a) * r - origin.z), Vector3.up,
+                new Vector2(0.5f + Mathf.Cos(a) * 0.5f, 0.5f + Mathf.Sin(a) * 0.5f));
             if (prev >= 0) Tri(sub, center, prev, k, Vector3.up);
             else first = k;
             prev = k;
         }
         Tri(sub, center, prev, first, Vector3.up);
+    }
+}
+
+public static class MeshBuilderExt
+{
+    /// <summary>상자 (center = 바닥 중앙이 아니라 상자 중앙, yaw = 도)</summary>
+    public static void Box(this MeshBuilder mb, int sub, Vector3 center, Vector3 size, float yaw)
+    {
+        Quaternion q = Quaternion.Euler(0, yaw, 0);
+        Vector3 hx = q * new Vector3(size.x * 0.5f, 0, 0), hy = new Vector3(0, size.y * 0.5f, 0), hz = q * new Vector3(0, 0, size.z * 0.5f);
+        Vector3[] n = { hx.normalized, -hx.normalized, Vector3.up, Vector3.down, hz.normalized, -hz.normalized };
+        Vector3[,] faces =
+        {
+            { center + hx - hy - hz, center + hx + hy - hz, center + hx + hy + hz, center + hx - hy + hz },
+            { center - hx - hy + hz, center - hx + hy + hz, center - hx + hy - hz, center - hx - hy - hz },
+            { center - hx + hy - hz, center - hx + hy + hz, center + hx + hy + hz, center + hx + hy - hz },
+            { center - hx - hy + hz, center - hx - hy - hz, center + hx - hy - hz, center + hx - hy + hz },
+            { center + hx - hy + hz, center + hx + hy + hz, center - hx + hy + hz, center - hx - hy + hz },
+            { center - hx - hy - hz, center - hx + hy - hz, center + hx + hy - hz, center + hx - hy - hz },
+        };
+        for (int f = 0; f < 6; f++)
+            mb.Quad(sub, faces[f, 0], faces[f, 1], faces[f, 2], faces[f, 3], n[f],
+                new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0));
+    }
+
+    /// <summary>풀 포기: 엇갈린 두 장의 판 (양면 재질)</summary>
+    public static void Tuft(this MeshBuilder mb, int sub, Vector3 basePos, float w, float h, float yaw)
+    {
+        for (int k = 0; k < 2; k++)
+        {
+            Quaternion q = Quaternion.Euler(0, yaw + k * 90f, 0);
+            Vector3 r = q * new Vector3(w * 0.5f, 0, 0);
+            Vector3 n = q * Vector3.forward;
+            Vector3 up = Vector3.up * h;
+            mb.Quad(sub, basePos - r, basePos - r + up, basePos + r + up, basePos + r, n,
+                new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0));
+        }
     }
 }
 
@@ -218,6 +256,24 @@ public static class Poly
     }
 
     static float Cross(Vector2 a, Vector2 b) => a.x * b.y - a.y * b.x;
+
+    /// <summary>반시계 다각형을 안쪽으로 d만큼 줄인다 (꼭짓점 이등분선, 뾰족한 곳은 제한)</summary>
+    public static List<Vector2> Inset(IList<Vector2> p, float d)
+    {
+        var r = new List<Vector2>(p.Count);
+        int n = p.Count;
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 a = p[(i + n - 1) % n], b = p[i], c = p[(i + 1) % n];
+            Vector2 e1 = (b - a).normalized, e2 = (c - b).normalized;
+            Vector2 n1 = new Vector2(-e1.y, e1.x), n2 = new Vector2(-e2.y, e2.x);   // 반시계 → 왼쪽이 안쪽
+            Vector2 m = (n1 + n2);
+            if (m.sqrMagnitude < 1e-6f) m = n2; else m.Normalize();
+            float s = 1f / Mathf.Max(0.35f, Vector2.Dot(m, n2));
+            r.Add(b + m * d * s);
+        }
+        return r;
+    }
 
     static bool InTri(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
     {

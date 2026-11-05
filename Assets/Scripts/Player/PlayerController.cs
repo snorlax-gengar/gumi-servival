@@ -38,6 +38,7 @@ public class PlayerController : MonoBehaviour
         stats = GetComponent<PlayerStats>();
         if (GetComponent<PlayerVisual>() == null) gameObject.AddComponent<PlayerVisual>();
         if (GetComponent<Wallet>() == null) gameObject.AddComponent<Wallet>();
+        if (GetComponent<Flashlight>() == null) gameObject.AddComponent<Flashlight>();
         if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
     }
 
