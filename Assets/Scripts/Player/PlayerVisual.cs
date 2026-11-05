@@ -69,7 +69,9 @@ public class PlayerVisual : MonoBehaviour
         anim.walkClipSpeed = 1.6f;   // Mixamo Walking 보폭
         anim.runClipSpeed = 4.4f;    // Mixamo Running 보폭
         anim.crouchClipSpeed = 1.1f;
-        anim.attackDuration = 0.8f;
+        anim.attackDuration = 0.7f;
+        anim.attackFrom = 0.18f;   // 준비 동작 앞부분과 마무리 뒷부분을 잘라 빠르게 휘두른다
+        anim.attackTo = 0.68f;
         bool ok = anim.Init(animator, MixamoLib.Clips(),
             new System.Collections.Generic.Dictionary<CharacterAnimator.Slot, string[]>
             {
@@ -90,6 +92,7 @@ public class PlayerVisual : MonoBehaviour
 
         foreach (var r in t.GetComponentsInChildren<Renderer>())
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+        ApplyRemyTextures(t);
 
         // 오른손 무기: 엄지 쪽으로 자루가 나오게 (T자세에서 계산)
         hand = AssetLib.FindBone(t, new[] { "righthand" }, new[] { "hand", "right" });
@@ -107,6 +110,50 @@ public class PlayerVisual : MonoBehaviour
         }
         Debug.Log($"[Gumi] Mixamo 플레이어 준비 (손: {(hand ? hand.name : "없음")})");
         return true;
+    }
+
+    /// <summary>
+    /// Remy FBX 안에 묻힌 텍스처는 Unity가 못 찾아서 흰 마네킹처럼 보였다.
+    /// Resources/Mixamo/Tex/에 뽑아 둔 텍스처를 재질 이름으로 찾아 직접 입힌다.
+    /// </summary>
+    static void ApplyRemyTextures(Transform t)
+    {
+        var lit = Shader.Find("Universal Render Pipeline/Lit");
+        string[] keys = { "body", "bottom", "top", "shoes", "hair" };
+        foreach (var r in t.GetComponentsInChildren<Renderer>())
+        {
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null) continue;
+                string n = mats[i].name.ToLowerInvariant();
+                if (n.Contains("eyelash")) { mats[i] = Kit.Mat(Kit.Hex("1A1512")); continue; }
+                string key = null;
+                foreach (var k in keys) if (n.Contains(k)) { key = k; break; }
+                if (key == null) continue;
+                string cap = char.ToUpperInvariant(key[0]) + key.Substring(1);
+                var baseTex = Resources.Load<Texture2D>(MixamoLib.Root + "Tex/Remy_" + cap + (key == "hair" ? "_DiffuseA" : "_Diffuse"));
+                if (baseTex == null) continue;
+                var nrm = Resources.Load<Texture2D>(MixamoLib.Root + "Tex/Remy_" + cap + "_Normal");
+                var m = lit != null ? new Material(lit) : new Material(mats[i]);
+                m.name = "Remy_" + cap;
+                m.SetTexture("_BaseMap", baseTex);
+                m.mainTexture = baseTex;
+                m.SetColor("_BaseColor", Color.white);
+                m.SetFloat("_Smoothness", key == "hair" ? 0.35f : 0.2f);
+                if (nrm != null) { m.SetTexture("_BumpMap", nrm); m.EnableKeyword("_NORMALMAP"); }
+                if (key == "hair")
+                {
+                    m.SetFloat("_AlphaClip", 1f);
+                    m.SetFloat("_Cutoff", 0.45f);
+                    m.EnableKeyword("_ALPHATEST_ON");
+                    m.SetFloat("_Cull", 0f);
+                    m.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+                }
+                mats[i] = m;
+            }
+            r.sharedMaterials = mats;
+        }
     }
 
     // ================= 에셋 모델 (Quaternius Worker_Male) =================

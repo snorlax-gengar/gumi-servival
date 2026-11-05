@@ -88,16 +88,17 @@ public class AndroidVisual : MonoBehaviour
         var spine = AssetLib.FindBone(t, new[] { "spine1" }, new[] { "spine" });
         if (headB != null)
         {
-            glow.Add(MixamoLib.Attach(headB, "눈띠", headB.position + fwd * 0.105f + up * 0.075f, face, new Vector3(0.15f, 0.022f, 0.012f), red, 4f).GetComponent<Renderer>());
-            MixamoLib.Attach(headB, "눈띠테", headB.position + fwd * 0.098f + up * 0.075f, face, new Vector3(0.17f, 0.05f, 0.01f), Kit.Hex("15171A"), 0f);
+            // 니어 오토마타식 검은 눈가리개 + 그 위로 새어 나오는 빨간 빛 한 줄
+            MixamoLib.Attach(headB, "눈가리개", headB.position + fwd * 0.085f + up * 0.085f, face, new Vector3(0.2f, 0.075f, 0.05f), Kit.Hex("111214"), 0f);
+            glow.Add(MixamoLib.Attach(headB, "눈빛", headB.position + fwd * 0.112f + up * 0.085f, face, new Vector3(0.17f, 0.02f, 0.01f), red, 6f).GetComponent<Renderer>());
         }
         if (chest != null)
         {
-            glow.Add(MixamoLib.Attach(chest, "가슴코어", chest.position + fwd * 0.14f + up * 0.03f, face, new Vector3(0.05f, 0.05f, 0.012f), red, 3f).GetComponent<Renderer>());
-            glow.Add(MixamoLib.Attach(chest, "등라인", chest.position - fwd * 0.12f, face, new Vector3(0.012f, 0.26f, 0.01f), red, 2.5f).GetComponent<Renderer>());
+            glow.Add(MixamoLib.Attach(chest, "가슴코어", chest.position + fwd * 0.14f + up * 0.03f, face * Quaternion.Euler(0, 0, 45), new Vector3(0.07f, 0.07f, 0.02f), red, 5f).GetComponent<Renderer>());
+            glow.Add(MixamoLib.Attach(chest, "등라인", chest.position - fwd * 0.13f, face, new Vector3(0.025f, 0.32f, 0.02f), red, 4f).GetComponent<Renderer>());
         }
         if (spine != null)
-            glow.Add(MixamoLib.Attach(spine, "허리라인", spine.position + fwd * 0.12f, face, new Vector3(0.2f, 0.01f, 0.01f), red, 2f).GetComponent<Renderer>());
+            glow.Add(MixamoLib.Attach(spine, "허리라인", spine.position + fwd * 0.125f, face, new Vector3(0.24f, 0.02f, 0.02f), red, 3.5f).GetComponent<Renderer>());
         foreach (var side in new[] { "left", "right" })
         {
             var fore = AssetLib.FindBone(t, new[] { side + "forearm" });
@@ -113,7 +114,9 @@ public class AndroidVisual : MonoBehaviour
         anim.runReference = 3.2f;
         anim.walkClipSpeed = 1.6f;
         anim.runClipSpeed = 4.4f;
-        anim.attackDuration = 1.0f;
+        anim.attackDuration = 0.9f;
+        anim.attackFrom = 0.1f;
+        anim.attackTo = 0.8f;
         bool ok = anim.Init(animator, MixamoLib.Clips(),
             new System.Collections.Generic.Dictionary<CharacterAnimator.Slot, string[]>
             {
@@ -134,7 +137,7 @@ public class AndroidVisual : MonoBehaviour
         Vector3 d = b.position - a.position;
         if (d.sqrMagnitude < 1e-4f) return;
         var r = MixamoLib.Attach(a, "라인", (a.position + b.position) * 0.5f + offset, Quaternion.LookRotation(d.normalized, Vector3.up),
-            new Vector3(0.012f, 0.012f, d.magnitude * 0.7f), c, 2.5f).GetComponent<Renderer>();
+            new Vector3(0.025f, 0.025f, d.magnitude * 0.75f), c, 4f).GetComponent<Renderer>();
         glow.Add(r);
     }
 

@@ -21,6 +21,10 @@ public class CharacterAnimator : MonoBehaviour
     public float walkClipSpeed = 0f, runClipSpeed = 0f, crouchClipSpeed = 1.2f;
     [Tooltip("0보다 크면 공격 동작을 이 시간(초)에 맞춰 재생한다")]
     public float attackDuration = 0f;
+    [Tooltip("공격 클립 중 쓸 구간 (0~1). 긴 준비·마무리 동작을 잘라 빠르게 휘두르게 한다")]
+    [Range(0, 1)] public float attackFrom = 0f, attackTo = 1f;
+    [Tooltip("이동 속도 변화를 부드럽게 (클수록 빠르게 따라감)")]
+    public float speedSmoothing = 10f;
 
     public bool IsReady { get; private set; }
     public bool HasClip(Slot s) => clips[(int)s] != null;
@@ -31,7 +35,7 @@ public class CharacterAnimator : MonoBehaviour
     readonly AnimationClip[] clips = new AnimationClip[SlotCount];
     readonly float[] weights = new float[SlotCount];
 
-    float speed, speedScale = 1f, crouchAmount;
+    float speed, rawSpeed, speedScale = 1f, crouchAmount;
     float attackT = -1f, attackLen = 0.6f, attackSpeed = 1f;
     bool dead;
 
@@ -95,7 +99,7 @@ public class CharacterAnimator : MonoBehaviour
     /// <summary>현재 이동 속도(m/s)와 재생 배율</summary>
     public void SetMovement(float metersPerSecond, float playbackScale = 1f)
     {
-        speed = metersPerSecond;
+        rawSpeed = metersPerSecond;
         speedScale = playbackScale;
     }
 
@@ -105,11 +109,13 @@ public class CharacterAnimator : MonoBehaviour
     public void PlayAttack(float playbackSpeed = 1f)
     {
         if (!IsReady || dead || clips[(int)Slot.Attack] == null) return;
-        if (attackDuration > 0f) playbackSpeed = clips[(int)Slot.Attack].length / attackDuration;
+        float len = clips[(int)Slot.Attack].length;
+        float span = Mathf.Max(0.05f, attackTo - attackFrom) * len;
+        if (attackDuration > 0f) playbackSpeed = span / attackDuration;
         attackSpeed = playbackSpeed;
-        attackLen = clips[(int)Slot.Attack].length / Mathf.Max(0.1f, playbackSpeed);
+        attackLen = span / Mathf.Max(0.1f, playbackSpeed);
         attackT = 0f;
-        plays[(int)Slot.Attack].SetTime(0);
+        plays[(int)Slot.Attack].SetTime(attackFrom * len);
     }
 
     public void PlayDeath()
@@ -123,6 +129,9 @@ public class CharacterAnimator : MonoBehaviour
     {
         if (!IsReady) return;
         float dt = Time.deltaTime;
+        // 매 프레임 위치 차이로 잰 속도는 들쭉날쭉해서, 걷기↔서기가 튀지 않게 부드럽게 따라간다
+        speed = Mathf.Lerp(speed, rawSpeed, 1f - Mathf.Exp(-speedSmoothing * dt));
+        if (rawSpeed < 0.05f && speed < 0.15f) speed = 0f;
 
         for (int i = 0; i < SlotCount; i++) weights[i] = 0f;
 

@@ -18,3 +18,9 @@ Mixamo(https://www.mixamo.com, 어도비 무료 계정) 파일은 약관상 원�
 | Dying.fbx | Dying |
 | MutantPunch.fbx | Mutant Punch |
 | HitReaction.fbx | Hit Reaction (선택) |
+
+## 텍스처 꺼내기 (필수)
+Remy처럼 텍스처가 FBX 안에 묻힌 캐릭터는 Unity가 텍스처를 못 찾아 흰 마네킹처럼 보인다. 넣은 뒤 한 번 실행:
+```
+python Tools/mixamo/extract_textures.py Assets/Resources/Mixamo/Player.fbx Assets/Resources/Mixamo/Tex
+```

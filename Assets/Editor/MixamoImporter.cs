@@ -14,7 +14,17 @@ public class MixamoImporter : AssetPostprocessor
 
     static bool IsMixamo(string p) => p.Replace('\\', '/').Contains(Folder);
 
-    public override uint GetVersion() => 2;
+    public override uint GetVersion() => 3;
+
+    // 캐릭터에서 뽑아낸 텍스처: 노멀맵은 노멀맵으로
+    void OnPreprocessTexture()
+    {
+        if (!IsMixamo(assetPath)) return;
+        var ti = (TextureImporter)assetImporter;
+        if (assetPath.Contains("_Normal")) ti.textureType = TextureImporterType.NormalMap;
+        if (assetPath.Contains("DiffuseA")) ti.alphaIsTransparency = true;
+        ti.maxTextureSize = 2048;
+    }
 
     void OnPreprocessModel()
     {
