@@ -89,6 +89,7 @@ public class PlayerCombat : MonoBehaviour
         // 인벤토리 버튼을 누른 클릭은 공격이 아니다
         Vector2 mp = mouse.position.ReadValue();
         if (HUD.InventoryScreenRect.Contains(new Vector2(mp.x, Screen.height - mp.y))) return;
+        if (MinimapHUD.BigMapOpen || MinimapHUD.PointerOverMap) return;   // 지도를 끌거나 누를 때는 공격하지 않음
 
         ItemData w = inv != null ? inv.EquippedWeapon : null;
         float dmg = w ? w.damage : fistDamage;

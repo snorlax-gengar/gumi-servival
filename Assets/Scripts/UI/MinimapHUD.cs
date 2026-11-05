@@ -6,7 +6,8 @@ using UnityEngine.Rendering;
 /// <summary>
 /// 오른쪽 위 미니맵 + 화면 위쪽 나침반 + 조작 안내.
 /// - 미니맵은 카메라가 바라보는 방향이 위쪽 (이동 방향과 일치)
-/// - M: 전체 지도 (북쪽이 위)
+/// - M: 전체 지도 (북쪽이 위). 휠 = 확대/축소(마우스 위치 기준), 왼쪽 드래그 = 이동, Space = 내 위치로
+/// - 미니맵 위에서 휠, 또는 - / = 키: 미니맵 확대/축소
 /// - 안드로이드는 평소에 보이지 않고, 경계/추적 중이거나 아주 가까이 있을 때만 점으로 표시
 /// IsometricCamera가 자동으로 붙인다.
 /// </summary>
@@ -23,6 +24,16 @@ public class MinimapHUD : MonoBehaviour
     RenderTexture miniRT, bigRT;
     Texture2D arrow, dot;
     bool bigMap;
+
+    /// <summary>전체 지도가 열려 있거나 마우스가 지도 위에 있으면 true (카메라 줌·공격 클릭을 막는다)</summary>
+    public static bool BigMapOpen { get; private set; }
+    public static bool PointerOverMap { get; private set; }
+
+    public float miniMin = 15f, miniMax = 250f;
+    float bigSize = 250f;
+    Vector2 bigCenter;
+    Rect lastRect;
+    bool dragging;
     GUIStyle label, small, compassStyle;
 
     readonly List<AndroidAI> androids = new List<AndroidAI>();
@@ -74,7 +85,18 @@ public class MinimapHUD : MonoBehaviour
     void Update()
     {
         var kb = Keyboard.current;
-        if (kb != null && kb.mKey.wasPressedThisFrame) bigMap = !bigMap;
+        if (kb != null && kb.mKey.wasPressedThisFrame)
+        {
+            bigMap = !bigMap;
+            if (bigMap && iso.target != null)
+            {
+                // 열 때는 내 주변 500m 정도
+                bigCenter = new Vector2(iso.target.position.x, iso.target.position.z);
+                bigSize = Mathf.Min(250f, FullSize());
+            }
+        }
+        BigMapOpen = bigMap;
+        HandleMapInput(kb);
 
         refreshTimer -= Time.deltaTime;
         if (refreshTimer <= 0)
@@ -92,11 +114,9 @@ public class MinimapHUD : MonoBehaviour
 
         if (bigMap)
         {
-            Bounds b = LevelNavMesh.LevelBounds;
-            if (b.size.sqrMagnitude < 1f) b = new Bounds(p, new Vector3(200, 10, 200));
             mapCam.targetTexture = bigRT;
-            mapCam.orthographicSize = Mathf.Max(b.extents.x, b.extents.z) + 4f;
-            mapCam.transform.SetPositionAndRotation(new Vector3(b.center.x, 150f, b.center.z), Quaternion.Euler(90f, 0f, 0f));
+            mapCam.orthographicSize = bigSize;
+            mapCam.transform.SetPositionAndRotation(new Vector3(bigCenter.x, 150f, bigCenter.y), Quaternion.Euler(90f, 0f, 0f));
         }
         else
         {
@@ -132,6 +152,7 @@ public class MinimapHUD : MonoBehaviour
         Rect r = bigMap
             ? CenterSquare(Mathf.Min(UIScale.W, UIScale.H) * 0.82f)
             : new Rect(UIScale.W - mapSize - 20, 48, mapSize, mapSize);
+        lastRect = r;
         DrawMap(r, bigMap ? bigRT : miniRT);
 
         if (CityGenerator.RealMapActive && !string.IsNullOrEmpty(CityGenerator.MapAttribution))
@@ -203,7 +224,7 @@ public class MinimapHUD : MonoBehaviour
         GUI.color = Color.white;
 
         if (bigMap)
-            GUI.Label(new Rect(r.x, r.yMax + 4, r.width, 24), "전체 지도 (북쪽이 위) — M으로 닫기", label);
+            GUI.Label(new Rect(r.x, r.yMax + 4, r.width, 24), "전체 지도 (북쪽이 위) · 휠 확대/축소 · 드래그 이동 · Space 내 위치 · M 닫기", label);
         else
         {
             // 미니맵 위쪽에 '북' 방향 표시
@@ -215,6 +236,84 @@ public class MinimapHUD : MonoBehaviour
             GUI.color = Color.white;
         }
     }
+
+    // ================= 지도 확대/축소·이동 =================
+
+    float FullSize()
+    {
+        Bounds b = LevelNavMesh.LevelBounds;
+        if (b.size.sqrMagnitude < 1f) return 150f;
+        return Mathf.Max(b.extents.x, b.extents.z) + 4f;
+    }
+
+    void ClampBig()
+    {
+        float full = FullSize();
+        bigSize = Mathf.Clamp(bigSize, 30f, full);
+        Bounds b = LevelNavMesh.LevelBounds;
+        if (b.size.sqrMagnitude < 1f) return;
+        float mx = Mathf.Max(0f, b.extents.x - bigSize * 0.5f), mz = Mathf.Max(0f, b.extents.z - bigSize * 0.5f);
+        bigCenter.x = Mathf.Clamp(bigCenter.x, b.center.x - mx, b.center.x + mx);
+        bigCenter.y = Mathf.Clamp(bigCenter.y, b.center.z - mz, b.center.z + mz);
+    }
+
+    void HandleMapInput(Keyboard kb)
+    {
+        var mouse = Mouse.current;
+        Vector2 mp = Vector2.zero;
+        if (mouse != null)
+        {
+            Vector2 sp = mouse.position.ReadValue();
+            mp = new Vector2(sp.x / UIScale.S, (Screen.height - sp.y) / UIScale.S);   // OnGUI 좌표
+        }
+        PointerOverMap = lastRect.width > 0 && lastRect.Contains(mp);
+        float scroll = mouse != null ? mouse.scroll.ReadValue().y : 0f;
+
+        if (!bigMap)
+        {
+            float step = 0f;
+            if (PointerOverMap && Mathf.Abs(scroll) > 0.01f) step = -Mathf.Sign(scroll);
+            if (kb != null && (kb.minusKey.wasPressedThisFrame || kb.numpadMinusKey.wasPressedThisFrame)) step = 1f;
+            if (kb != null && (kb.equalsKey.wasPressedThisFrame || kb.numpadPlusKey.wasPressedThisFrame)) step = -1f;
+            if (step != 0f) miniOrthoSize = Mathf.Clamp(miniOrthoSize * (step > 0 ? 1.35f : 1f / 1.35f), miniMin, miniMax);
+            dragging = false;
+            return;
+        }
+
+        // 전체 지도: 휠 = 마우스가 가리키는 곳을 기준으로 확대/축소
+        float zoom = 0f;
+        if (Mathf.Abs(scroll) > 0.01f) zoom = -Mathf.Sign(scroll);
+        if (kb != null && (kb.minusKey.wasPressedThisFrame || kb.numpadMinusKey.wasPressedThisFrame)) zoom = 1f;
+        if (kb != null && (kb.equalsKey.wasPressedThisFrame || kb.numpadPlusKey.wasPressedThisFrame)) zoom = -1f;
+        if (zoom != 0f)
+        {
+            Vector2 uv = PointerOverMap
+                ? new Vector2((mp.x - lastRect.x) / lastRect.width, 1f - (mp.y - lastRect.y) / lastRect.height)
+                : new Vector2(0.5f, 0.5f);
+            Vector2 world = bigCenter + (uv - new Vector2(0.5f, 0.5f)) * 2f * bigSize;
+            bigSize *= zoom > 0 ? 1.3f : 1f / 1.3f;
+            bigSize = Mathf.Clamp(bigSize, 30f, FullSize());
+            bigCenter = world - (uv - new Vector2(0.5f, 0.5f)) * 2f * bigSize;
+        }
+
+        // 왼쪽 드래그 = 이동
+        if (mouse != null)
+        {
+            if (mouse.leftButton.wasPressedThisFrame && PointerOverMap) dragging = true;
+            if (!mouse.leftButton.isPressed) dragging = false;
+            if (dragging && lastRect.width > 0)
+            {
+                Vector2 d = mouse.delta.ReadValue() / UIScale.S;
+                bigCenter.x -= d.x / lastRect.width * 2f * bigSize;
+                bigCenter.y -= d.y / lastRect.height * 2f * bigSize;
+            }
+        }
+        if (kb != null && kb.spaceKey.wasPressedThisFrame && iso.target != null)
+            bigCenter = new Vector2(iso.target.position.x, iso.target.position.z);
+        ClampBig();
+    }
+
+    void OnDisable() { BigMapOpen = false; PointerOverMap = false; }
 
     bool ToMap(Rect r, Vector3 world, out Vector2 m)
     {

@@ -117,6 +117,7 @@ public class IsometricCamera : MonoBehaviour
         {
             // 휠 값의 크기는 OS마다 달라서(1 또는 120) 방향만 사용
             float scroll = mouse.scroll.ReadValue().y;
+            if (MinimapHUD.BigMapOpen || MinimapHUD.PointerOverMap) scroll = 0f;   // 지도 위에서는 지도 줌
             if (Mathf.Abs(scroll) > 0.01f)
                 distance = Mathf.Clamp(distance - Mathf.Sign(scroll) * zoomStep, minDistance, maxDistance);
 
