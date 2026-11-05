@@ -12,11 +12,15 @@ using UnityEngine.Playables;
 /// </summary>
 public class CharacterAnimator : MonoBehaviour
 {
-    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4 }
-    const int SlotCount = 5;
+    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5 }
+    const int SlotCount = 6;
 
-    public float walkReference = 1.6f;   // 걷기 클립이 원래 속도로 보이는 이동 속도(m/s)
-    public float runReference = 4.5f;
+    public float walkReference = 1.6f;   // 이 속도(m/s)에서 걷기 동작이 완전히 섞인다
+    public float runReference = 4.5f;    // 이 속도에서 달리기 동작이 완전히 섞인다
+    [Tooltip("클립 원래 보폭 속도(m/s). 0이면 walkReference/runReference를 쓴다 (Mixamo처럼 실제 보폭이 있는 클립용)")]
+    public float walkClipSpeed = 0f, runClipSpeed = 0f, crouchClipSpeed = 1.2f;
+    [Tooltip("0보다 크면 공격 동작을 이 시간(초)에 맞춰 재생한다")]
+    public float attackDuration = 0f;
 
     public bool IsReady { get; private set; }
     public bool HasClip(Slot s) => clips[(int)s] != null;
@@ -27,7 +31,7 @@ public class CharacterAnimator : MonoBehaviour
     readonly AnimationClip[] clips = new AnimationClip[SlotCount];
     readonly float[] weights = new float[SlotCount];
 
-    float speed, speedScale = 1f;
+    float speed, speedScale = 1f, crouchAmount;
     float attackT = -1f, attackLen = 0.6f, attackSpeed = 1f;
     bool dead;
 
@@ -95,9 +99,13 @@ public class CharacterAnimator : MonoBehaviour
         speedScale = playbackScale;
     }
 
+    /// <summary>0 = 서 있음, 1 = 웅크림 (웅크려 걷기 클립이 있을 때만 의미 있음)</summary>
+    public void SetCrouch(float amount) { crouchAmount = Mathf.Clamp01(amount); }
+
     public void PlayAttack(float playbackSpeed = 1f)
     {
         if (!IsReady || dead || clips[(int)Slot.Attack] == null) return;
+        if (attackDuration > 0f) playbackSpeed = clips[(int)Slot.Attack].length / attackDuration;
         attackSpeed = playbackSpeed;
         attackLen = clips[(int)Slot.Attack].length / Mathf.Max(0.1f, playbackSpeed);
         attackT = 0f;
@@ -135,8 +143,21 @@ public class CharacterAnimator : MonoBehaviour
             weights[(int)Slot.Run] = walk * run;
             if (clips[(int)Slot.Idle] == null) { weights[(int)Slot.Walk] += weights[(int)Slot.Idle]; weights[(int)Slot.Idle] = 0f; }
 
-            SetSpeed(Slot.Walk, Mathf.Clamp(speed / walkReference, 0.6f, 1.6f) * speedScale);
-            SetSpeed(Slot.Run, Mathf.Clamp(speed / runReference, 0.7f, 1.4f) * speedScale);
+            if (walkClipSpeed > 0f) SetSpeed(Slot.Walk, Mathf.Clamp(speed / walkClipSpeed, 0.6f, 1.8f) * speedScale);
+            else SetSpeed(Slot.Walk, Mathf.Clamp(speed / walkReference, 0.6f, 1.6f) * speedScale);
+            if (runClipSpeed > 0f) SetSpeed(Slot.Run, Mathf.Clamp(speed / runClipSpeed, 0.7f, 1.6f) * speedScale);
+            else SetSpeed(Slot.Run, Mathf.Clamp(speed / runReference, 0.7f, 1.4f) * speedScale);
+
+            // 웅크리기: 서 있는 동작 대신 웅크려 걷기 (멈추면 그 자세로 정지)
+            if (clips[(int)Slot.Crouch] != null && crouchAmount > 0f)
+            {
+                float c = crouchAmount;
+                weights[(int)Slot.Idle] *= 1f - c;
+                weights[(int)Slot.Walk] *= 1f - c;
+                weights[(int)Slot.Run] *= 1f - c;
+                weights[(int)Slot.Crouch] = c;
+                SetSpeed(Slot.Crouch, Mathf.Clamp(speed / Mathf.Max(0.1f, crouchClipSpeed), 0f, 1.8f));
+            }
 
             // 공격: 들어올 때와 끝날 때 살짝 섞는다
             if (attackT >= 0f)
@@ -156,7 +177,7 @@ public class CharacterAnimator : MonoBehaviour
             if (clips[i] == null) continue;
             mixer.SetInputWeight(i, weights[i]);
             // 이동 클립은 직접 반복
-            if (i <= (int)Slot.Run)
+            if (i <= (int)Slot.Run || i == (int)Slot.Crouch)
             {
                 double len = clips[i].length;
                 double tm = plays[i].GetTime();

@@ -38,9 +38,112 @@ public class AndroidVisual : MonoBehaviour
         // 기존 캡슐/바이저 렌더러 숨기기
         foreach (var r in GetComponentsInChildren<Renderer>()) r.enabled = false;
 
-        Animated = TryBuildAsset();
+        Animated = TryBuildMixamo() || TryBuildAsset();
         if (!Animated) Build();
         lastPos = transform.position;
+    }
+
+    // ================= Mixamo X Bot → 니어식 사람형 안드로이드 =================
+
+    readonly System.Collections.Generic.List<Renderer> glow = new System.Collections.Generic.List<Renderer>();
+    bool glowOn = true;
+
+    bool TryBuildMixamo()
+    {
+        if (!MixamoLib.HasModel("Android")) return false;
+        float s = Mathf.Max(0.01f, transform.lossyScale.y);
+        var space = Kit.Group(transform, "ModelSpace", new Vector3(0, -1.1f / s, 0));
+        space.localScale = Vector3.one / s;
+
+        var t = AssetLib.Spawn(MixamoLib.Root + "Android", space, Vector3.zero, modelYawOffset, AssetLib.Fit.Height, new Vector3(0, 1.92f, 0),
+            false, false, "Model");
+        if (t == null) { Destroy(space.gameObject); return false; }
+        var animator = t.GetComponentInChildren<Animator>();
+        if (animator == null || !animator.isHuman) { Destroy(space.gameObject); return false; }
+
+        // 색: 도자기 같은 흰 외장 + 흑연색 관절
+        foreach (var r in t.GetComponentsInChildren<Renderer>())
+        {
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++)
+            {
+                if (mats[i] == null) continue;
+                Color c = AssetLib.BaseColor(mats[i]);
+                Color.RGBToHSV(c, out float h, out float sat, out float v);
+                string n = mats[i].name.ToLowerInvariant();
+                bool joint = n.Contains("joint") || v < 0.35f;
+                mats[i] = AssetLib.Recolor(mats[i], joint ? Kit.Hex("23262B") : Kit.Hex("E6E8EA"));
+                mats[i].SetFloat("_Smoothness", joint ? 0.35f : 0.7f);
+            }
+            r.sharedMaterials = mats;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+        }
+
+        // 빛나는 눈띠·라인 (T자세에서 붙인다)
+        Vector3 fwd = transform.forward, up = Vector3.up;
+        Quaternion face = Quaternion.LookRotation(fwd, up);
+        Color red = Kit.Visor;
+        var headB = AssetLib.FindBone(t, new[] { "head" });
+        var chest = AssetLib.FindBone(t, new[] { "spine2" }, new[] { "spine1" });
+        var spine = AssetLib.FindBone(t, new[] { "spine1" }, new[] { "spine" });
+        if (headB != null)
+        {
+            glow.Add(MixamoLib.Attach(headB, "눈띠", headB.position + fwd * 0.105f + up * 0.075f, face, new Vector3(0.15f, 0.022f, 0.012f), red, 4f).GetComponent<Renderer>());
+            MixamoLib.Attach(headB, "눈띠테", headB.position + fwd * 0.098f + up * 0.075f, face, new Vector3(0.17f, 0.05f, 0.01f), Kit.Hex("15171A"), 0f);
+        }
+        if (chest != null)
+        {
+            glow.Add(MixamoLib.Attach(chest, "가슴코어", chest.position + fwd * 0.14f + up * 0.03f, face, new Vector3(0.05f, 0.05f, 0.012f), red, 3f).GetComponent<Renderer>());
+            glow.Add(MixamoLib.Attach(chest, "등라인", chest.position - fwd * 0.12f, face, new Vector3(0.012f, 0.26f, 0.01f), red, 2.5f).GetComponent<Renderer>());
+        }
+        if (spine != null)
+            glow.Add(MixamoLib.Attach(spine, "허리라인", spine.position + fwd * 0.12f, face, new Vector3(0.2f, 0.01f, 0.01f), red, 2f).GetComponent<Renderer>());
+        foreach (var side in new[] { "left", "right" })
+        {
+            var fore = AssetLib.FindBone(t, new[] { side + "forearm" });
+            var hnd = AssetLib.FindBone(t, new[] { side + "hand" });
+            if (fore != null && hnd != null) LimbLine(fore, hnd, up * 0.045f, red);
+            var thigh = AssetLib.FindBone(t, new[] { side + "upleg" });
+            var knee = AssetLib.FindBone(t, new[] { side + "leg" });
+            if (thigh != null && knee != null && knee != thigh) LimbLine(thigh, knee, fwd * 0.075f, red);
+        }
+
+        anim = t.gameObject.AddComponent<CharacterAnimator>();
+        anim.walkReference = 1.5f;
+        anim.runReference = 3.2f;
+        anim.walkClipSpeed = 1.6f;
+        anim.runClipSpeed = 4.4f;
+        anim.attackDuration = 1.0f;
+        bool ok = anim.Init(animator, MixamoLib.Clips(),
+            new System.Collections.Generic.Dictionary<CharacterAnimator.Slot, string[]>
+            {
+                { CharacterAnimator.Slot.Idle, new[] { "idle" } },
+                { CharacterAnimator.Slot.Walk, new[] { "walk" } },
+                { CharacterAnimator.Slot.Run, new[] { "run" } },
+                { CharacterAnimator.Slot.Attack, new[] { "mutantpunch", "attackmelee" } },
+                { CharacterAnimator.Slot.Death, new[] { "dying" } },
+            },
+            new[] { "crouch" });
+        if (!ok) { Destroy(space.gameObject); glow.Clear(); return false; }
+        model = space;
+        return true;
+    }
+
+    void LimbLine(Transform a, Transform b, Vector3 offset, Color c)
+    {
+        Vector3 d = b.position - a.position;
+        if (d.sqrMagnitude < 1e-4f) return;
+        var r = MixamoLib.Attach(a, "라인", (a.position + b.position) * 0.5f + offset, Quaternion.LookRotation(d.normalized, Vector3.up),
+            new Vector3(0.012f, 0.012f, d.magnitude * 0.7f), c, 2.5f).GetComponent<Renderer>();
+        glow.Add(r);
+    }
+
+    void SetGlow(bool on, float flicker = 1f)
+    {
+        bool vis = on && flicker > 0.5f;
+        if (glowOn == vis) return;
+        glowOn = vis;
+        foreach (var r in glow) if (r != null) r.enabled = vis;
     }
 
     // ================= 에셋 모델 (Quaternius Animated Robot) =================
@@ -168,7 +271,13 @@ public class AndroidVisual : MonoBehaviour
 
     void LateUpdate()
     {
-        if (body != null && body.IsDead) return;
+        if (body != null && body.IsDead) { SetGlow(false); return; }
+        if (glow.Count > 0)
+        {
+            // 기절하면 눈·라인이 깜빡인다
+            bool stunnedNow = ai != null && ai.IsStunned;
+            SetGlow(true, stunnedNow ? Mathf.PerlinNoise(Time.time * 12f, 0.3f) * 1.6f : 1f);
+        }
 
         Vector3 delta = transform.position - lastPos; delta.y = 0;
         lastPos = transform.position;

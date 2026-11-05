@@ -32,3 +32,7 @@ Thumbs.db
 
 # 받은 에셋 원본 zip (필요한 모델만 Assets/Resources로 옮겨 씀)
 /_incoming/
+
+# Mixamo 원본 (약관상 공개 저장소 재배포 불가) — Tools/mixamo/README.md 참고
+/Assets/Resources/Mixamo/
+/Assets/Resources/Mixamo.meta

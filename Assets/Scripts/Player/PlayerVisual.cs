@@ -45,9 +45,68 @@ public class PlayerVisual : MonoBehaviour
         foreach (var r in GetComponentsInChildren<Renderer>())
             if (r.name == "Body" || r.name == "Nose") r.enabled = false;
 
-        animated = TryBuildAsset();
+        animated = TryBuildMixamo() || TryBuildAsset();
         if (!animated) Build();
         lastPos = transform.position;
+    }
+
+    // ================= Mixamo 사람 모델 (좀보이드·GTA식 실제 비율) =================
+
+    bool mixamo;
+
+    bool TryBuildMixamo()
+    {
+        if (!MixamoLib.HasModel("Player")) return false;
+        var t = AssetLib.Spawn(MixamoLib.Root + "Player", transform, Vector3.zero, modelYawOffset, AssetLib.Fit.Height, new Vector3(0, 1.76f, 0),
+            false, false, "Model");
+        if (t == null) return false;
+        var animator = t.GetComponentInChildren<Animator>();
+        if (animator == null || !animator.isHuman) { Destroy(t.gameObject); Debug.LogWarning("[Gumi] Mixamo 플레이어가 휴머노이드가 아님"); return false; }
+
+        anim = t.gameObject.AddComponent<CharacterAnimator>();
+        anim.walkReference = 2.6f;   // 이 속도에서 완전히 걷기
+        anim.runReference = 5.5f;
+        anim.walkClipSpeed = 1.6f;   // Mixamo Walking 보폭
+        anim.runClipSpeed = 4.4f;    // Mixamo Running 보폭
+        anim.crouchClipSpeed = 1.1f;
+        anim.attackDuration = 0.8f;
+        bool ok = anim.Init(animator, MixamoLib.Clips(),
+            new System.Collections.Generic.Dictionary<CharacterAnimator.Slot, string[]>
+            {
+                { CharacterAnimator.Slot.Idle, new[] { "idle" } },
+                { CharacterAnimator.Slot.Walk, new[] { "walk" } },
+                { CharacterAnimator.Slot.Run, new[] { "run" } },
+                { CharacterAnimator.Slot.Crouch, new[] { "crouch" } },
+                { CharacterAnimator.Slot.Attack, new[] { "attackmelee", "attackbat", "mutantpunch" } },
+                { CharacterAnimator.Slot.Death, new[] { "dying" } },
+            },
+            null);
+        if (!ok) { Destroy(t.gameObject); return false; }
+        model = t;
+        mixamo = true;
+
+        // 사람 걸음에 맞춘 속도 (좀보이드처럼 걷기는 느긋하게, 뛰어야 따돌린다)
+        if (ctrl != null) { ctrl.walkSpeed = 2.6f; ctrl.runSpeed = 5.5f; ctrl.crouchSpeed = 1.3f; }
+
+        foreach (var r in t.GetComponentsInChildren<Renderer>())
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+
+        // 오른손 무기: 엄지 쪽으로 자루가 나오게 (T자세에서 계산)
+        hand = AssetLib.FindBone(t, new[] { "righthand" }, new[] { "hand", "right" });
+        if (hand != null)
+        {
+            var mid = AssetLib.FindBone(hand, new[] { "righthandmiddle1" }, new[] { "middle1" });
+            var thumb = AssetLib.FindBone(hand, new[] { "righthandthumb1" }, new[] { "thumb1" });
+            Vector3 finger = mid != null ? (mid.position - hand.position).normalized : transform.right;
+            Vector3 axis = thumb != null ? Vector3.ProjectOnPlane(thumb.position - hand.position, finger).normalized : transform.forward;
+            if (axis.sqrMagnitude < 0.5f) axis = transform.forward;
+            var grip = new GameObject("무기손잡이").transform;
+            grip.SetPositionAndRotation(hand.position + finger * 0.075f, Quaternion.LookRotation(axis, finger));
+            grip.SetParent(hand, true);
+            BuildWeapons(grip, false);
+        }
+        Debug.Log($"[Gumi] Mixamo 플레이어 준비 (손: {(hand ? hand.name : "없음")})");
+        return true;
     }
 
     // ================= 에셋 모델 (Quaternius Worker_Male) =================
@@ -139,6 +198,12 @@ public class PlayerVisual : MonoBehaviour
 
         // 웅크리기: 동작을 느리게 하고 몸을 낮춘다 (전용 동작이 없어서 자세로 표현)
         crouch = Mathf.MoveTowards(crouch, ctrl != null && ctrl.IsCrouching ? 1f : 0f, 5f * Time.deltaTime);
+        if (anim.HasClip(CharacterAnimator.Slot.Crouch))
+        {
+            anim.SetCrouch(crouch);
+            anim.SetMovement(speed);
+            return;
+        }
         anim.SetMovement(speed, Mathf.Lerp(1f, 0.75f, crouch));
         model.localPosition = new Vector3(0, -0.06f * crouch, 0);
         model.localRotation = Quaternion.Euler(18f * crouch, modelYawOffset, 0);
@@ -222,7 +287,7 @@ public class PlayerVisual : MonoBehaviour
     /// <summary>PlayerCombat이 공격할 때 부른다</summary>
     public void TriggerSwing()
     {
-        if (animated) anim.PlayAttack(1.6f);
+        if (animated) anim.PlayAttack(mixamo ? 1f : 1.6f);
         else swingT = 0f;
     }
 
