@@ -451,6 +451,7 @@ public partial class CityGenerator
             var pts = Pts(b.p);
             if (pts.Count < 3) continue;
             if (Poly.SignedArea(pts) < 0) pts.Reverse();
+            if (b.k == "station") { BuildStation(pts, b); continue; }
             Vector2 c = Poly.Centroid(pts);
             int hash = Mathf.Abs((int)(pts[0].x * 73.13f) ^ (int)(pts[0].y * 191.7f) ^ idx * 7919);
 
@@ -646,6 +647,76 @@ public partial class CityGenerator
             else if (ground.Count > 0) PlaceShopLoot(ground, fmid, fn, fd, fl, hash);
             else PlaceBuildingLoot(b, style, store, poi, fmid, fn, fd, fl, hash);
         }
+    }
+
+    // ================= 구미역 (선상역사) =================
+
+    /// <summary>
+    /// 구미역: 철길 위에 떠 있는 선상역사. 기둥 위 유리 대합실 + 코레일 파란 띠 + 큰 '구미역' 글씨 (밤에 빛남).
+    /// 아래로는 철길과 승강장이 지나가고 사람도 기둥 사이로 다닐 수 있다.
+    /// </summary>
+    void BuildStation(List<Vector2> pts, MapBuilding b)
+    {
+        Vector2 c = Poly.Centroid(pts);
+        var origin = new Vector3(c.x, 0, c.y);
+        const float yb = 7.5f, yt = 17f;
+        var mb = new MeshBuilder(5);   // 0 유리벽, 1 지붕, 2 아랫면, 3 기둥, 4 파란 띠
+        for (int i = 0; i < pts.Count; i++)
+        {
+            Vector2 a = pts[i], e = pts[(i + 1) % pts.Count];
+            float L = (e - a).magnitude;
+            if (L < 0.05f) continue;
+            Vector3 n = new Vector3(e.y - a.y, 0, -(e.x - a.x)) / L;
+            Vector3 A = new Vector3(a.x - c.x, 0, a.y - c.y), E = new Vector3(e.x - c.x, 0, e.y - c.y);
+            float u1 = L / Facade.BayWidth, v1 = (yt - yb - 1.6f) / Facade.Floor;
+            mb.Quad(0, A + Vector3.up * yb, A + Vector3.up * (yt - 1.6f), E + Vector3.up * (yt - 1.6f), E + Vector3.up * yb, n,
+                new Vector2(0, 0), new Vector2(0, v1), new Vector2(u1, v1), new Vector2(u1, 0));
+            mb.Quad(4, A + Vector3.up * (yt - 1.6f), A + Vector3.up * yt, E + Vector3.up * yt, E + Vector3.up * (yt - 1.6f), n,
+                Vector2.zero, Vector2.up, Vector2.one, Vector2.right);
+        }
+        mb.Polygon(1, pts, yt, origin);
+        mb.Polygon(2, pts, yb, origin, 0.1f, true);
+        // 기둥: 14m 간격
+        float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+        foreach (var q in pts) { minX = Mathf.Min(minX, q.x); maxX = Mathf.Max(maxX, q.x); minZ = Mathf.Min(minZ, q.y); maxZ = Mathf.Max(maxZ, q.y); }
+        for (float x = minX + 6f; x < maxX; x += 14f)
+            for (float z = minZ + 6f; z < maxZ; z += 14f)
+            {
+                var q = new Vector2(x, z);
+                if (!InsideShrunk(pts, q, 2f)) continue;
+                mb.Box(3, new Vector3(q.x - c.x, yb * 0.5f, q.y - c.y), new Vector3(1.3f, yb, 1.3f), 0f);
+            }
+        var mats = new[] { Facade.Wall(Facade.Style.Office, 3), Kit.Mat(Kit.Hex("8A8F96")), Kit.Mat(Kit.Hex("C9CED4")),
+                           Kit.Mat(Kit.Hex("D8DCE0")), Kit.Mat(Kit.Hex("0B5BAA")) };
+        var go = mb.Build("구미역", BuildingParent(c), origin, mats, true);
+        if (go == null) return;
+        go.AddComponent<OccluderGroup>();
+
+        // 큰 글씨: 가장 긴 두 벽 (역 앞 광장 쪽과 반대쪽)
+        var order = new List<int>();
+        for (int i = 0; i < pts.Count; i++) order.Add(i);
+        order.Sort((i, j) => (pts[(j + 1) % pts.Count] - pts[j]).sqrMagnitude.CompareTo((pts[(i + 1) % pts.Count] - pts[i]).sqrMagnitude));
+        for (int k = 0; k < Mathf.Min(2, order.Count); k++)
+        {
+            int i = order[k];
+            Vector2 a = pts[i], e = pts[(i + 1) % pts.Count];
+            float L = (e - a).magnitude;
+            if (L < 20f) continue;
+            Vector3 n = new Vector3(e.y - a.y, 0, -(e.x - a.x)) / L;
+            Vector3 mid = new Vector3((a.x + e.x) * 0.5f - c.x, 0, (a.y + e.y) * 0.5f - c.y);
+            Kit.Label(go.transform, "구미역", mid + n * 0.12f + Vector3.up * (yt - 4.3f), Kit.Facing(n), 3.6f, Color.white);
+            Kit.Label(go.transform, "GUMI STATION · 2052", mid + n * 0.12f + Vector3.up * (yt - 6.7f), Kit.Facing(n), 1.0f, Kit.Hex("CFE3F5"));
+            Kit.Box(go.transform, mid + n * 0.06f + Vector3.up * (yt - 4.3f), new Vector3(Mathf.Min(L * 0.5f, 22f), 4.4f, 0.08f),
+                Kit.Hex("0B3E73"), rot: Quaternion.LookRotation(n), emission: 0.6f, name: "역 간판");
+        }
+        // 밤에 역 앞이 밝게
+        var lg = new GameObject("역 조명");
+        lg.transform.SetParent(go.transform, false);
+        lg.transform.localPosition = new Vector3(0, yb - 0.5f, 0);
+        var l = lg.AddComponent<Light>();
+        l.type = LightType.Point; l.range = 45f; l.intensity = 4f; l.color = Kit.Hex("DDE8FF"); l.shadows = LightShadows.None; l.enabled = false;
+        NightLights.Register(l);
+        Debug.Log($"[Gumi] 구미역 선상역사 ({b.n})");
     }
 
     // ================= 가게 안 =================

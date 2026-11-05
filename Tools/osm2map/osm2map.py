@@ -69,9 +69,10 @@ def ring(e):
 def rnd(eid):
     return random.Random(int(hashlib.md5(str(eid).encode()).hexdigest()[:8], 16))
 
-ROADW = {'motorway': 14, 'trunk': 12, 'primary': 12, 'secondary': 11, 'tertiary': 9, 'unclassified': 6,
-         'residential': 6, 'living_street': 5, 'service': 4, 'pedestrian': 5, 'footway': 2, 'path': 1.8,
-         'steps': 2, 'track': 3, 'cycleway': 2, 'motorway_link': 7, 'tertiary_link': 7, 'secondary_link': 7, 'primary_link': 8}
+# 한국 도로 실제 폭에 가깝게 (차로 + 길어깨). 건물에 닿는 구간은 roadfit.py가 줄인다
+ROADW = {'motorway': 22, 'trunk': 22, 'primary': 22, 'secondary': 18, 'tertiary': 13, 'unclassified': 7.5,
+         'residential': 7.5, 'living_street': 5.5, 'service': 4.5, 'pedestrian': 6, 'footway': 2.2, 'path': 1.8,
+         'steps': 2, 'track': 3, 'cycleway': 2, 'motorway_link': 8, 'tertiary_link': 8, 'secondary_link': 9, 'primary_link': 9}
 LANDK = {'farmland': 'farm', 'grass': 'grass', 'flowerbed': 'grass', 'greenhouse_horticulture': 'farm', 'meadow': 'grass',
          'forest': 'wood', 'cemetery': 'grass', 'recreation_ground': 'grass', 'village_green': 'grass'}
 commercial = []
@@ -93,8 +94,8 @@ for e in el:
         if hw in ('platform', 'bus_stop', 'construction', 'proposed', 'elevator', 'corridor'): continue
         w = ROADW.get(hw, 5)
         lanes = t.get('lanes')
-        if lanes and lanes.isdigit() and hw not in ('footway', 'path'): w = max(int(lanes) * 3.0, 4)
-        elif t.get('oneway') == 'yes' and hw in ('primary', 'secondary', 'tertiary', 'trunk', 'unclassified', 'residential'): w *= 0.65
+        if lanes and lanes.isdigit() and hw not in ('footway', 'path'): w = max(int(lanes) * 3.25 + 1.5, 4.5)
+        elif t.get('oneway') == 'yes' and hw in ('primary', 'secondary', 'tertiary', 'trunk', 'unclassified', 'residential'): w *= 0.6
         if t.get('area') == 'yes' and closed(e):
             cp = clip_poly(ring(e))
             if len(cp) >= 3: areas.append({'k': 'plaza', 'n': '', 'p': flat(cp)})
@@ -127,6 +128,8 @@ for e in el:
                 elif A < 200: lv = r.randint(2, 5) if com else r.randint(2, 4)
                 elif A < 800: lv = r.randint(4, 8) if com else r.randint(2, 5)
                 else: lv = r.randint(3, 7) if com else r.randint(1, 3)
+        if bt == 'train_station' or t.get('railway') == 'station':
+            blds.append({'k': 'station', 'lv': 3, 'n': t.get('name', '구미역'), 'a': '', 'p': flat(pts)}); continue
         kind = {'apartments': 'apt', 'house': 'house', 'school': 'school', 'kindergarten': 'school', 'roof': 'roof',
                 'church': 'church', 'hospital': 'public', 'public': 'public', 'commercial': 'shop', 'retail': 'shop',
                 'residential': 'villa'}.get(bt, 'shop' if com else 'gen')
