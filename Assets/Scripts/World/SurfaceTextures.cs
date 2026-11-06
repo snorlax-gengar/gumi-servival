@@ -137,6 +137,28 @@ public static class SurfaceTextures
         return Make(key, tex, 0.05f);
     }
 
+    /// <summary>옥상 방수 페인트: 벗겨진 자국·물 고였던 얼룩 (10m에 한 장)</summary>
+    public static Texture2D RoofTex(Color baseC, string key)
+    {
+        const int N = 256;
+        var tex = New(key + "_tex", N);
+        var px = new Color[N * N];
+        var rng = new System.Random(key.GetHashCode());
+        Color bare = Kit.Hex("8E8C86");
+        for (int y = 0; y < N; y++)
+            for (int x = 0; x < N; x++)
+            {
+                float peel = Fbm(x / 50f, y / 50f, 4);
+                Color c = peel > 0.62f ? bare : baseC;
+                float puddle = Fbm(x / 90f + 5, y / 90f + 9, 3);
+                if (puddle > 0.6f) c *= 0.85f;
+                c *= 1f + ((float)rng.NextDouble() - 0.5f) * 0.08f;
+                c.a = 1; px[y * N + x] = c;
+            }
+        tex.SetPixels(px); tex.Apply(true);
+        return tex;
+    }
+
     /// <summary>풀 포기: 가는 잎 여러 개 (알파 잘라내기, 양면)</summary>
     public static Material Tuft()
     {

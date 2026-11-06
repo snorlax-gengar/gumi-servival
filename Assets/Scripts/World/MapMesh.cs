@@ -209,6 +209,24 @@ public static class MeshBuilderExt
                 new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0));
     }
 
+    /// <summary>임의 회전 상자 (태양광 패널처럼 기울어진 것)</summary>
+    public static void BoxRot(this MeshBuilder mb, int sub, Vector3 center, Vector3 size, Quaternion q)
+    {
+        Vector3 hx = q * new Vector3(size.x * 0.5f, 0, 0), hy = q * new Vector3(0, size.y * 0.5f, 0), hz = q * new Vector3(0, 0, size.z * 0.5f);
+        Vector3[] n = { hx.normalized, -hx.normalized, hy.normalized, -hy.normalized, hz.normalized, -hz.normalized };
+        Vector3[,] f =
+        {
+            { center + hx - hy - hz, center + hx + hy - hz, center + hx + hy + hz, center + hx - hy + hz },
+            { center - hx - hy + hz, center - hx + hy + hz, center - hx + hy - hz, center - hx - hy - hz },
+            { center - hx + hy - hz, center - hx + hy + hz, center + hx + hy + hz, center + hx + hy - hz },
+            { center - hx - hy + hz, center - hx - hy - hz, center + hx - hy - hz, center + hx - hy + hz },
+            { center + hx - hy + hz, center + hx + hy + hz, center - hx + hy + hz, center - hx - hy + hz },
+            { center - hx - hy - hz, center - hx + hy - hz, center + hx + hy - hz, center + hx - hy - hz },
+        };
+        for (int k = 0; k < 6; k++)
+            mb.Quad(sub, f[k, 0], f[k, 1], f[k, 2], f[k, 3], n[k], new Vector2(0, 0), new Vector2(0, 1), new Vector2(1, 1), new Vector2(1, 0));
+    }
+
     /// <summary>풀 포기: 엇갈린 두 장의 판 (양면 재질)</summary>
     public static void Tuft(this MeshBuilder mb, int sub, Vector3 basePos, float w, float h, float yaw)
     {

@@ -90,6 +90,8 @@ public class GameManager : MonoBehaviour
             Color fog = Color.Lerp(NightFog, DayFog, Mathf.Clamp01(daylight * 2f));
             RenderSettings.fogColor = Color.Lerp(fog, DuskFog, dusk * 0.5f);
             FogDepth = Mathf.Lerp(90f, 200f, Mathf.Clamp01(daylight * 2f));
+            // 밤에는 생존자들이 사는 창 몇 개에 불이 켜진다
+            Facade.SetNightGlow(1f - Mathf.Clamp01(daylight * 4f));
         }
     }
 
