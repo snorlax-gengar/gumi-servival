@@ -103,8 +103,13 @@ public class PlayerVisual : MonoBehaviour
             Vector3 finger = mid != null ? (mid.position - hand.position).normalized : transform.right;
             Vector3 axis = thumb != null ? Vector3.ProjectOnPlane(thumb.position - hand.position, finger).normalized : transform.forward;
             if (axis.sqrMagnitude < 0.5f) axis = transform.forward;
+            // 엄지 쪽 그대로면 팔을 내렸을 때 공구가 사타구니 앞으로 수평으로 튀어나온다.
+            // 손가락(아래) 쪽으로 60° 기울여 들고 다니는 자세로: 평소엔 아래-앞, 휘두르면 바깥으로.
+            axis = (axis * Mathf.Cos(60f * Mathf.Deg2Rad) + finger * Mathf.Sin(60f * Mathf.Deg2Rad)).normalized;
+            Vector3 upHint = Vector3.Cross(axis, Vector3.Cross(finger, axis)).normalized;
+            if (upHint.sqrMagnitude < 0.5f) upHint = Vector3.up;
             var grip = new GameObject("무기손잡이").transform;
-            grip.SetPositionAndRotation(hand.position + finger * 0.075f, Quaternion.LookRotation(axis, finger));
+            grip.SetPositionAndRotation(hand.position + finger * 0.08f - axis * 0.04f, Quaternion.LookRotation(axis, upHint));
             grip.SetParent(hand, true);
             BuildWeapons(grip, false);
         }
