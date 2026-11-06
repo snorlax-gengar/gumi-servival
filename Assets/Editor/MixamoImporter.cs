@@ -12,9 +12,12 @@ public class MixamoImporter : AssetPostprocessor
     const string Folder = "/Resources/Mixamo/";
     static readonly string[] Loops = { "Idle", "Walk", "Run", "CrouchWalk", "Fall" };
 
+    // 점프·넘기·기어오르기: 몸이 위로 솟는 높이는 버린다 (높이는 PlayerController가 직접 움직임 → 두 배로 뜨지 않게)
+    static readonly string[] Traverse = { "Jump", "Vault", "Climb" };
+
     static bool IsMixamo(string p) => p.Replace('\\', '/').Contains(Folder);
 
-    public override uint GetVersion() => 4;
+    public override uint GetVersion() => 5;
 
     // 캐릭터에서 뽑아낸 텍스처: 노멀맵은 노멀맵으로
     void OnPreprocessTexture()
@@ -48,7 +51,7 @@ public class MixamoImporter : AssetPostprocessor
             clips[i].loopTime = loop;
             clips[i].lockRootRotation = true;
             clips[i].keepOriginalOrientation = true;
-            clips[i].lockRootHeightY = true;
+            clips[i].lockRootHeightY = System.Array.IndexOf(Traverse, name) < 0;
             // 높이는 '발' 기준: 다른 체형(Y Bot 동작 → Remy)에 입혀도 발이 땅에 붙는다 (원본 기준이면 공중에 뜸)
             clips[i].keepOriginalPositionY = false;
             clips[i].heightFromFeet = true;
