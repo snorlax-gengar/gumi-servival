@@ -994,7 +994,7 @@ public partial class CityGenerator
         }
         var parent = new GameObject("구미_출입구").transform;
         parent.SetParent(root, false);
-        var glowMats = new[] { Kit.Mat(Kit.Hex("6FE0B8"), 2.2f), Kit.Mat(Kit.Hex("2F5A4A")) };
+        var glowMats = new[] { Kit.Mat(Kit.Hex("4FC79C"), 0.45f), Kit.Mat(Kit.Hex("2F5A4A")) };   // 가까이서 하얗게 타지 않게 약하게
         var mapMats = new[] { Kit.Mat(Kit.Hex("6FE0B8"), 1.5f) };
         foreach (var kv in glowChunks)
         {

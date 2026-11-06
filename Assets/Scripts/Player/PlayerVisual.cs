@@ -15,6 +15,8 @@ public class PlayerVisual : MonoBehaviour
     Transform model, hipL, hipR, armL, armR, torso, hand;
     CharacterAnimator anim;
     bool animated;
+    /// <summary>애니메이션 있는 캐릭터 모델을 쓰는 중 (휘두르는 동작이 실제로 보임)</summary>
+    public bool IsAnimated => animated;
     GameObject wrenchModel, pipeModel;
 
     /// <summary>1인칭: 몸은 그림자만 남기고 숨김 (손에 든 무기는 보인다)</summary>

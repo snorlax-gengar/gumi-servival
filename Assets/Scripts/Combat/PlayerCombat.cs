@@ -152,8 +152,9 @@ public class PlayerCombat : MonoBehaviour
         var blade = swing.GetChild(0);
         blade.localScale = new Vector3(0.08f, 0.08f, range);
         blade.localPosition = new Vector3(0, 0, range * 0.5f);
-        swing.gameObject.SetActive(true);
         var visual = GetComponent<PlayerVisual>();
+        // 흰 막대는 초기 시제품용 표시. 캐릭터가 실제로 휘두르는 동작이 있으면 보이지 않게
+        swing.gameObject.SetActive(visual == null || !visual.IsAnimated);
         if (visual != null) visual.TriggerSwing();
     }
 
