@@ -102,6 +102,11 @@ public class PlayerVisual : MonoBehaviour
         if (!ok) { Destroy(t.gameObject); return false; }
         model = t;
         mixamo = true;
+        // 발을 땅에 붙이기 (애니메이션 뒤 발 높이를 재서 모델 높이 보정)
+        var g = animator.gameObject.AddComponent<FootGrounder>();
+        g.animator = animator;
+        g.character = transform;
+        g.paused = () => (stats != null && stats.IsDead) || (ctrl != null && (ctrl.IsAirborne || ctrl.IsVaulting));
 
         // 사람 걸음에 맞춘 속도 (좀보이드처럼 걷기는 느긋하게, 뛰어야 따돌린다)
         if (ctrl != null) { ctrl.walkSpeed = 2.6f; ctrl.runSpeed = 5.5f; ctrl.crouchSpeed = 1.3f; }

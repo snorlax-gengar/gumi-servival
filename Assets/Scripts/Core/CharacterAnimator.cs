@@ -64,7 +64,7 @@ public class CharacterAnimator : MonoBehaviour
         {
             if (clips[i] == null) continue;
             plays[i] = AnimationClipPlayable.Create(graph, clips[i]);
-            plays[i].SetApplyFootIK(false);
+            plays[i].SetApplyFootIK(animator.isHuman);   // 휴머노이드: 발 IK로 동작 원래 발 위치를 지킴 (미끄러짐·뜸 줄임)
             graph.Connect(plays[i], 0, mixer, i);
             mixer.SetInputWeight(i, 0f);
         }

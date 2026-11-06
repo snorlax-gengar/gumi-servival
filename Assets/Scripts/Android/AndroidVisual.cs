@@ -129,6 +129,10 @@ public class AndroidVisual : MonoBehaviour
             new[] { "crouch" });
         if (!ok) { Destroy(space.gameObject); glow.Clear(); return false; }
         model = space;
+        var g = animator.gameObject.AddComponent<FootGrounder>();
+        g.animator = animator;
+        g.character = transform;
+        g.paused = () => body != null && body.IsDead;
         return true;
     }
 
