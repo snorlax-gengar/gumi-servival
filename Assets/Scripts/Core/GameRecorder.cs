@@ -20,6 +20,8 @@ public class GameRecorder : MonoBehaviour
     public int maxWidth = 1600;   // 화면이 더 크면 이 너비로 줄여서 저장
 
     public bool IsRecording { get; private set; }
+    public static GameRecorder Instance { get; private set; }
+    void Awake() { Instance = this; }
     public static string LastFolder { get; private set; }
 
     string folder;
@@ -38,7 +40,7 @@ public class GameRecorder : MonoBehaviour
         }
     }
 
-    void StartRecording()
+    public void StartRecording()
     {
         if (!SystemInfo.supportsAsyncGPUReadback) { HUD.ShowMessage("이 PC에서는 녹화를 지원하지 않는다", 3f); return; }
         string root = Path.Combine(Path.GetDirectoryName(Application.dataPath), "Recordings");
@@ -52,7 +54,7 @@ public class GameRecorder : MonoBehaviour
         Debug.Log($"[Gumi] 녹화 시작: {folder}");
     }
 
-    void StopRecording()
+    public void StopRecording()
     {
         IsRecording = false;
         if (loop != null) StopCoroutine(loop);

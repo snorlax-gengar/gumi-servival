@@ -257,6 +257,8 @@ public class IsometricCamera : MonoBehaviour
         foreach (var h in Physics.SphereCastAll(from, radius, dir, dist, mask, QueryTriggerInteraction.Ignore))
         {
             if (h.transform.IsChildOf(target)) continue;
+            var bs = h.collider.bounds.size;
+            if (bs.y < 2.5f && bs.x < 6f && bs.z < 6f) continue;   // 상자·차 같은 낮은 것은 무시 (넘을 때 카메라가 머리 속으로 파고들지 않게)
             if (h.distance <= 0f) { d = 0f; return true; }   // 이미 겹침
             if (h.distance < d) { d = h.distance; any = true; }
         }

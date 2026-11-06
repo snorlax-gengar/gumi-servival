@@ -62,10 +62,18 @@ public class PlayerController : MonoBehaviour
     /// 넘기 판정: 무릎 높이에서 앞이 막혔고, 머리 높이는 뚫려 있고, 장애물 너머에 설 자리가 있으면.
     /// </summary>
     [Tooltip("이 높이까지는 손을 짚고 기어오른다 (차 지붕, 담, 컨테이너, 낮은 지붕)")]
+    const float VaultClipLift = 0.9f;   // Vault.fbx(Vault Over Box)가 스스로 몸을 올리는 높이
     public float climbMaxHeight = 2.0f;     // 차 지붕·담장까지. 건물 지붕·차양은 높이와 상관없이 못 오른다
     public float climbStamina = 14f;
     /// <summary>넘기·오르기 시작 (종류 0 넘기, 1 기어오르기, 2 점프, 길이 초). 애니메이션이 듣는다.</summary>
     public event System.Action<int, float> OnTraverse;
+
+    // 자동 테스트(ParkourTest)용: 키보드 대신 이 값으로 움직인다
+    [System.NonSerialized] public Vector3? DebugMove;
+    [System.NonSerialized] public bool DebugRun, DebugJump;
+    public bool IsTraversing => vaulting;
+    public int TraverseKind => vaultKind;
+    public void Teleport(Vector3 p) { cc.enabled = false; transform.position = p; cc.enabled = true; verticalVel = 0f; }
     int vaultKind;
     float vaultDuration;
 
@@ -101,8 +109,9 @@ public class PlayerController : MonoBehaviour
                 Vector3 p = g.point;
                 if (Physics.CheckCapsule(p + Vector3.up * (cc.radius + 0.05f), p + Vector3.up * (1.7f - cc.radius), r, mask, QueryTriggerInteraction.Ignore)) continue;
                 // 달리면서 넘으면 허들처럼 낮고 빠르게, 서서 넘으면 손 짚고 넘기
-                if (IsRunning) StartTraverse(0, o, p, topY + 0.2f, vaultTime * 0.75f, vaultStamina);
-                else StartTraverse(0, o, p, topY + 0.35f, vaultTime, vaultStamina);
+                // 서서 넘기는 동작(Vault Over Box)이 몸을 약 0.9m 들어 올리므로, 그보다 높은 만큼만 더 띄운다
+                if (IsRunning) StartTraverse(5, o, p, topY + 0.2f, vaultTime * 0.75f, vaultStamina);
+                else StartTraverse(0, o, p, Mathf.Max(0.05f, topY + 0.15f - VaultClipLift), vaultTime * 1.4f, vaultStamina);
                 return true;
             }
         }
@@ -117,7 +126,7 @@ public class PlayerController : MonoBehaviour
                 Vector3 p = g.point;
                 if (Physics.CheckCapsule(p + Vector3.up * (cc.radius + 0.05f), p + Vector3.up * (1.7f - cc.radius), r, mask, QueryTriggerInteraction.Ignore)) continue;
                 if (stats != null && stats.stamina < climbStamina) { HUD.ShowMessage("담을 넘기엔 너무 지쳤다", 1.2f); return true; }
-                StartTraverse(4, o, p, topY + 0.25f, 0.85f + topY * 0.2f, climbStamina);
+                StartTraverse(4, o, p, Mathf.Max(0.1f, topY + 0.2f - VaultClipLift), 1.0f + topY * 0.2f, climbStamina);
                 return true;
             }
         }
@@ -166,16 +175,6 @@ public class PlayerController : MonoBehaviour
             float fw = Mathf.SmoothStep(0, 1, Mathf.Clamp01((t - 0.45f) / 0.55f));
             p = new Vector3(Mathf.Lerp(vaultFrom.x, vaultTo.x, fw), Mathf.Lerp(vaultFrom.y, vaultTo.y + 0.05f, up), Mathf.Lerp(vaultFrom.z, vaultTo.z, fw));
         }
-        else if (vaultKind == 4)
-        {
-            // 담 넘기: 손 짚고 몸을 끌어올림(0~40%) → 담 위로 넘김(40~60%) → 반대편에 내려섬(60~100%)
-            float fw = Mathf.SmoothStep(0, 1, Mathf.Clamp01((t - 0.15f) / 0.7f));
-            float topAbs = vaultFrom.y + vaultPeak;
-            float y = t < 0.4f ? Mathf.Lerp(vaultFrom.y, topAbs, Mathf.SmoothStep(0, 1, t / 0.4f))
-                    : t < 0.6f ? topAbs
-                    : Mathf.Lerp(topAbs, vaultTo.y, Mathf.Pow((t - 0.6f) / 0.4f, 1.6f));
-            p = new Vector3(Mathf.Lerp(vaultFrom.x, vaultTo.x, fw), y, Mathf.Lerp(vaultFrom.z, vaultTo.z, fw));
-        }
         else
         {
             p = Vector3.Lerp(vaultFrom, vaultTo, Mathf.SmoothStep(0, 1, t));
@@ -199,7 +198,9 @@ public class PlayerController : MonoBehaviour
         if (PauseMenu.IsPaused) return;
 
         // 점프 / 넘기 (전체 지도가 열려 있으면 Space는 지도용)
-        if (kb.spaceKey.wasPressedThisFrame && !MinimapHUD.BigMapOpen && cc.isGrounded && attackLock <= 0f
+        bool jumpKey = kb.spaceKey.wasPressedThisFrame || DebugJump;
+        DebugJump = false;
+        if (jumpKey && !MinimapHUD.BigMapOpen && cc.isGrounded && attackLock <= 0f
             && (ScenarioManager.Instance == null || !ScenarioManager.Instance.Won || Time.timeScale > 0f))
         {
             bool tired = stats != null && stats.stamina < jumpStamina;
@@ -224,9 +225,11 @@ public class PlayerController : MonoBehaviour
 
         if (kb.cKey.wasPressedThisFrame) crouchToggle = !crouchToggle;
         if (kb.leftShiftKey.isPressed && input.sqrMagnitude > 0.01f) crouchToggle = false;   // 달리면 일어선다
-        IsCrouching = kb.leftCtrlKey.isPressed || crouchToggle;
+        // Ctrl 누르고 있기 웅크림은 뺐다: 에디터에서 Ctrl+P로 플레이를 시작하면 Ctrl이 눌린 채로 남아 저절로 웅크리는 버그가 있었다
+        IsCrouching = crouchToggle;
         bool canRun = stats == null || stats.CanRun;
-        IsRunning = kb.leftShiftKey.isPressed && !IsCrouching && canRun && input.sqrMagnitude > 0.01f;
+        if (DebugMove.HasValue) input = new Vector2(0f, DebugMove.Value.sqrMagnitude > 0.01f ? 1f : 0f);
+        IsRunning = (kb.leftShiftKey.isPressed || DebugRun) && !IsCrouching && canRun && input.sqrMagnitude > 0.01f;
         IsMoving = input.sqrMagnitude > 0.01f;
 
         // 카메라 기준 방향
@@ -236,7 +239,7 @@ public class PlayerController : MonoBehaviour
             fwd = Vector3.ProjectOnPlane(cameraTransform.forward, Vector3.up).normalized;
             right = Vector3.ProjectOnPlane(cameraTransform.right, Vector3.up).normalized;
         }
-        Vector3 move = fwd * input.y + right * input.x;
+        Vector3 move = DebugMove.HasValue ? DebugMove.Value : fwd * input.y + right * input.x;
 
         float speed = IsCrouching ? crouchSpeed : IsRunning ? runSpeed : walkSpeed;
         if (stats != null) speed *= stats.SpeedMultiplier;

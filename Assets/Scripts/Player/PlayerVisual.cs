@@ -157,14 +157,15 @@ public class PlayerVisual : MonoBehaviour
         lastTraverse = Time.time;
         switch (kind)
         {
-            case 0:
-                if (ctrl != null && ctrl.IsRunning && Play(CharacterAnimator.Slot.Hurdle, duration, 0.1f, 0.85f)) break;
-                if (!Play(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.85f)) Play(CharacterAnimator.Slot.Hurdle, duration, 0.1f, 0.85f);
+            case 0: case 4:   // 손 짚고 넘기 / 담 넘기
+                if (!Play(CharacterAnimator.Slot.Vault, duration, 0.05f, 0.9f)) Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.7f);
+                break;
+            case 5:   // 달리며 넘기(허들): 앞으로 뛰어오르는 점프 동작
+                Play(CharacterAnimator.Slot.Jump, duration, 0.2f, 0.75f);
                 break;
             case 1: Play(CharacterAnimator.Slot.Climb, duration, 0.05f, 0.95f); break;
             case 2: Play(CharacterAnimator.Slot.Jump, 0.45f, 0.2f, 0.55f); break;
-            case 3: if (!Play(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.6f)) Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.6f); break;
-            case 4: if (!Play(CharacterAnimator.Slot.Vault, duration, 0.05f, 0.95f)) Play(CharacterAnimator.Slot.Climb, duration, 0.3f, 0.9f); break;
+            case 3: Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.6f); break;   // 무릎 올려 올라서기
         }
     }
 

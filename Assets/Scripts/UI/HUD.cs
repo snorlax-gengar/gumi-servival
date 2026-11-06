@@ -36,6 +36,7 @@ public class HUD : MonoBehaviour
         interactor = GetComponent<Interactor>();
         wallet = GetComponent<Wallet>();
         if (GetComponent<GameRecorder>() == null) gameObject.AddComponent<GameRecorder>();
+        if (GetComponent<ParkourTest>() == null) gameObject.AddComponent<ParkourTest>();
         white = Texture2D.whiteTexture;
     }
 
