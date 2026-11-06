@@ -55,7 +55,7 @@ public class IsometricCamera : MonoBehaviour
     public float shoulderFov = 62f;
     /// <summary>어깨 시점 (V로 1인칭과 전환)</summary>
     public static bool Shoulder { get; private set; }
-    /// <summary>마우스로 둘러보는 시점 (1인칭 또는 어깨). 몸이 보는 방향을 향한다.</summary>
+    /// <summary>마우스로 둘러보는 시점 (1인칭 또는 어깨). 1인칭은 몸이 보는 방향, 어깨는 이동 방향을 향한다.</summary>
     public static bool MouseLook => FirstPerson || Shoulder;
 
     // ---- 화면 흔들림 ----
@@ -220,7 +220,7 @@ public class IsometricCamera : MonoBehaviour
             fpYaw += d.x;
             fpPitch = Mathf.Clamp(fpPitch - d.y, -60f, 70f);
         }
-        target.rotation = Quaternion.Euler(0f, fpYaw, 0f);
+        // 어깨 시점: 카메라는 마우스로 따로 돌고, 캐릭터는 WASD로 누른 방향을 향한다 (GTA식)
         currentYaw = fpYaw;
 
         bool crouch = pctrl != null && pctrl.IsCrouching;

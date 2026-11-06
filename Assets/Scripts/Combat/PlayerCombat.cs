@@ -172,7 +172,13 @@ public class PlayerCombat : MonoBehaviour
         if (stats != null && stats.stamina < shoveStamina) { HUD.ShowMessage("너무 지쳤다 (스태미나 부족)"); return; }
         shoveTimer = shoveCooldown;
         if (stats != null) stats.stamina -= shoveStamina;
-        if (controller != null) controller.LockForAttack(0.3f);
+        if (controller != null)
+        {
+            // 어깨 시점: 밀칠 때는 겨냥한 쪽(화면 가운데)으로 몸을 돌린다
+            if (target != null && target.Current != null) controller.FaceTowards(target.Current.transform.position);
+            else if (controller.MouseGroundPoint(out Vector3 aim)) controller.FaceTowards(aim);
+            controller.LockForAttack(0.3f);
+        }
         var visual = GetComponent<PlayerVisual>();
         if (visual != null) visual.TriggerSwing();
         Sfx.Play("swing", transform.position, 0.5f, 0.2f, 0f);

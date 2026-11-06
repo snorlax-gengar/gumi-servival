@@ -181,7 +181,7 @@ public class PlayerController : MonoBehaviour
         cc.height = Mathf.Lerp(cc.height, IsCrouching ? 1.1f : 1.8f, 10f * Time.deltaTime);
         cc.center = new Vector3(0, cc.height / 2f, 0);
 
-        if (!attacking && !IsometricCamera.MouseLook) FaceMoveDirection(move);
+        if (!attacking && !IsometricCamera.FirstPerson) FaceMoveDirection(move);   // 1인칭만 카메라가 몸 방향을 정함
 
         // 발소리 · 착지 소리
         if (cc.isGrounded && !wasGrounded) Sfx.Play("land", transform.position, 0.8f, 0.05f, 0f);
@@ -215,7 +215,7 @@ public class PlayerController : MonoBehaviour
     /// <summary>해당 지점을 즉시 바라본다 (마우스 조준 공격용)</summary>
     public void FaceTowards(Vector3 worldPoint)
     {
-        if (IsometricCamera.MouseLook) return;
+        if (IsometricCamera.FirstPerson) return;
         Vector3 dir = worldPoint - transform.position; dir.y = 0;
         if (dir.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
     }
@@ -227,7 +227,9 @@ public class PlayerController : MonoBehaviour
         var mouse = Mouse.current;
         Camera cam = Camera.main;
         if (mouse == null || cam == null) return false;
-        Ray ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+        // 커서가 잠긴 시점(1인칭·어깨)에서는 화면 가운데 조준점이 겨냥점
+        Vector2 sp = Cursor.lockState == CursorLockMode.Locked ? new Vector2(Screen.width * 0.5f, Screen.height * 0.5f) : mouse.position.ReadValue();
+        Ray ray = cam.ScreenPointToRay(sp);
         var ground = new Plane(Vector3.up, transform.position);
         if (!ground.Raycast(ray, out float enter)) return false;
         point = ray.GetPoint(enter);
