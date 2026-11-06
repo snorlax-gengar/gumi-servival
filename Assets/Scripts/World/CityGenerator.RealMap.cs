@@ -646,6 +646,8 @@ public partial class CityGenerator
 
     readonly Dictionary<long, Transform> bldParents = new Dictionary<long, Transform>();
     Transform bldRoot, lootRoot;
+    /// <summary>건물(벽·지붕·차양·가게 안 진열대). 플레이어는 여기 위로는 기어오르지 못한다.</summary>
+    public static Transform BuildingRoot;
 
     Transform BuildingParent(Vector2 c)
     {
@@ -664,6 +666,7 @@ public partial class CityGenerator
     {
         bldRoot = new GameObject("구미_건물").transform;
         bldRoot.SetParent(root, false);
+        BuildingRoot = bldRoot;
         lootRoot = new GameObject("뒤질 곳").transform;
         lootRoot.SetParent(root, false);
 

@@ -62,7 +62,7 @@ public class PlayerController : MonoBehaviour
     /// 넘기 판정: 무릎 높이에서 앞이 막혔고, 머리 높이는 뚫려 있고, 장애물 너머에 설 자리가 있으면.
     /// </summary>
     [Tooltip("이 높이까지는 손을 짚고 기어오른다 (차 지붕, 담, 컨테이너, 낮은 지붕)")]
-    public float climbMaxHeight = 2.6f;
+    public float climbMaxHeight = 2.0f;     // 차 지붕·담장까지. 건물 지붕·차양은 높이와 상관없이 못 오른다
     public float climbStamina = 14f;
     /// <summary>넘기·오르기 시작 (종류 0 넘기, 1 기어오르기, 2 점프, 길이 초). 애니메이션이 듣는다.</summary>
     public event System.Action<int, float> OnTraverse;
@@ -104,6 +104,8 @@ public class PlayerController : MonoBehaviour
                 return true;
             }
         }
+        // 건물(지붕·차양·진열대) 위로는 오르지 않는다 → 옥상으로 새는 버그 방지
+        if (CityGenerator.BuildingRoot != null && top.collider != null && top.collider.transform.IsChildOf(CityGenerator.BuildingRoot)) return false;
         // 위에 올라설 자리 (넘을 수 없는 두꺼운 것, 또는 높은 것)
         Vector3 stand = top.point + fwd * 0.35f;
         if (Physics.Raycast(stand + Vector3.up * 0.6f, Vector3.down, out RaycastHit st, 1.0f, mask, QueryTriggerInteraction.Ignore)
@@ -111,8 +113,10 @@ public class PlayerController : MonoBehaviour
             && !Physics.CheckCapsule(st.point + Vector3.up * (cc.radius + 0.08f), st.point + Vector3.up * (1.7f - cc.radius), r, mask, QueryTriggerInteraction.Ignore))
         {
             if (stats != null && stats.stamina < climbStamina) { HUD.ShowMessage("기어오르기엔 너무 지쳤다", 1.2f); return true; }
-            float dur = 0.55f + topY * 0.28f;
-            StartTraverse(1, o, st.point, 0f, dur, climbStamina);
+            // 낮은 것(차 보닛·평상)은 한 발 딛고 올라서기, 높은 것(담장)은 손으로 매달려 끌어올리기
+            bool step = topY <= vaultMaxHeight;
+            float dur = step ? 0.45f + topY * 0.2f : 0.7f + topY * 0.3f;
+            StartTraverse(step ? 3 : 1, o, st.point, 0f, dur, step ? vaultStamina : climbStamina);
             return true;
         }
         return false;
@@ -138,7 +142,7 @@ public class PlayerController : MonoBehaviour
         vaultT += Time.deltaTime / Mathf.Max(0.05f, vaultDuration);
         float t = Mathf.Clamp01(vaultT);
         Vector3 p;
-        if (vaultKind == 1)
+        if (vaultKind == 1 || vaultKind == 3)
         {
             // 기어오르기: 먼저 손을 짚고 몸을 끌어올리고(65%), 그다음 무릎을 올려 앞으로(35%)
             float up = Mathf.SmoothStep(0, 1, Mathf.Clamp01(t / 0.65f));

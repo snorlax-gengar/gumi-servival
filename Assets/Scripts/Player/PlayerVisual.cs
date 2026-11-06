@@ -151,6 +151,7 @@ public class PlayerVisual : MonoBehaviour
         {
             case 0: if (!anim.PlayAction(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.85f)) anim.PlayAction(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.8f); break;
             case 1: anim.PlayAction(CharacterAnimator.Slot.Climb, duration, 0.05f, 0.95f); break;
+            case 3: if (!anim.PlayAction(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.6f)) anim.PlayAction(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.6f); break;
             case 2: anim.PlayAction(CharacterAnimator.Slot.Jump, 0.45f, 0.2f, 0.55f); break;
         }
     }

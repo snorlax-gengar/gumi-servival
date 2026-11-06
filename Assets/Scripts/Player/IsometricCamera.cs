@@ -225,21 +225,42 @@ public class IsometricCamera : MonoBehaviour
 
         bool crouch = pctrl != null && pctrl.IsCrouching;
         Quaternion rot = Quaternion.Euler(fpPitch, fpYaw, 0f);
-        Vector3 pivot = target.position + Vector3.up * (crouch ? shoulderHeight - 0.45f : shoulderHeight) + (rot * Vector3.right) * shoulderRight;
+        // 벽에 붙어 걸을 때 카메라가 벽 속으로 들어가지 않게: ① 머리→어깨 옆, ② 어깨→뒤 두 번 검사
+        const float camR = 0.25f;
+        int mask = ~((1 << AndroidLayer) | (1 << 30) | (1 << 31));
+        Vector3 head = target.position + Vector3.up * (crouch ? shoulderHeight - 0.45f : shoulderHeight);
+        Vector3 side = rot * Vector3.right;
+        float sideWant = shoulderRight;
+        if (CamCast(head, side, shoulderRight, mask, camR, out float sd)) sideWant = Mathf.Max(0f, sd - 0.05f);
+        shoulderSide = Mathf.Lerp(shoulderSide, sideWant, (sideWant < shoulderSide ? 25f : 5f) * Time.deltaTime);
+        Vector3 pivot = head + side * shoulderSide;
         Vector3 back = rot * Vector3.back;
         float want = shoulderDistance;
-        int mask = ~(1 << AndroidLayer);
-        if (Physics.SphereCast(target.position + Vector3.up * 1.4f, 0.2f, (pivot + back * want - (target.position + Vector3.up * 1.4f)).normalized,
-                out RaycastHit hit, Vector3.Distance(target.position + Vector3.up * 1.4f, pivot + back * want), mask, QueryTriggerInteraction.Ignore)
-            && !hit.transform.IsChildOf(target))
-            want = Mathf.Max(0.4f, hit.distance - 0.6f);
-        shoulderCur = Mathf.Lerp(shoulderCur, want, (want < shoulderCur ? 20f : 5f) * Time.deltaTime);
+        if (CamCast(pivot, back, shoulderDistance, mask, camR, out float bd)) want = Mathf.Max(0.15f, bd - 0.05f);
+        // 가까워질 땐 즉시(벽 뚫림 방지), 멀어질 땐 부드럽게
+        shoulderCur = want < shoulderCur ? want : Mathf.Lerp(shoulderCur, want, 5f * Time.deltaTime);
         transform.SetPositionAndRotation(pivot + back * shoulderCur, rot * ShakeRot());
 
         RenderSettings.fogStartDistance = 14f;
         RenderSettings.fogEndDistance = 14f + GameManager.FogDepth * 0.85f;
         var urp = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
         if (urp != null && Mathf.Abs(urp.shadowDistance - 70f) > 5f) urp.shadowDistance = 70f;
+    }
+
+    float shoulderSide = 0.6f;
+
+    // 플레이어 자신은 무시하고 가장 가까운 벽까지 거리
+    bool CamCast(Vector3 from, Vector3 dir, float dist, int mask, float radius, out float d)
+    {
+        d = dist;
+        bool any = false;
+        foreach (var h in Physics.SphereCastAll(from, radius, dir, dist, mask, QueryTriggerInteraction.Ignore))
+        {
+            if (h.transform.IsChildOf(target)) continue;
+            if (h.distance <= 0f) { d = 0f; return true; }   // 이미 겹침
+            if (h.distance < d) { d = h.distance; any = true; }
+        }
+        return any;
     }
 
     void OnGUI()
