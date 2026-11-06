@@ -26,8 +26,10 @@ public partial class CityGenerator
     public static string FuelHintText = "동쪽 도로의 쓰러진 배달 오토바이를 뒤져 보자";
 
     RealMapData real;
-    const float GroundHalf = 1152f;          // 바닥 텍스처가 덮는 범위
-    const float PlayHalfX = 1118f, PlayHalfZ = 1098f;
+    // 바닥 텍스처가 덮는 범위, 걸어 다닐 수 있는 범위 (지도 데이터에 있으면 그 값)
+    float GroundHalf => real != null && real.groundHalf > 0 ? real.groundHalf : 1152f;
+    float PlayHalfX => real != null && real.playHalf > 0 ? real.playHalf : 1118f;
+    float PlayHalfZ => real != null && real.playHalf > 0 ? real.playHalf : 1098f;
     const float Chunk = 256f;
 
     // 도로 위 점 (안드로이드 생성·순찰), 도로 선분 (건물 정면 찾기)
@@ -221,7 +223,8 @@ public partial class CityGenerator
         bc.center = new Vector3(0, -0.5f, 0);
         bc.size = new Vector3(H * 2, 1f, H * 2);
 
-        // 지도 끝 보이지 않는 벽
+        BuildQuarantineWall();
+        // 지도 끝 보이지 않는 벽 (봉쇄벽 뒤 안전장치)
         float h = 6f;
         foreach (var w in new[]
         {
@@ -235,6 +238,49 @@ public partial class CityGenerator
             wall.transform.SetParent(root, false);
             wall.transform.position = w.center;
             wall.AddComponent<BoxCollider>().size = w.size;
+        }
+    }
+
+    /// <summary>
+    /// 지도 끝 = 봉쇄선: 콘크리트 방호벽 + 철망 + 경고 띠, 100m마다 '출입 통제' 표지판.
+    /// 2052년, 구미 시내는 안드로이드 폭주 이후 격리 구역이다.
+    /// </summary>
+    void BuildQuarantineWall()
+    {
+        float hx = PlayHalfX, hz = PlayHalfZ;
+        var mb = new MeshBuilder(4);   // 0 콘크리트, 1 경고 띠, 2 철망 기둥, 3 철망
+        var corners = new[] { new Vector2(-hx, -hz), new Vector2(hx, -hz), new Vector2(hx, hz), new Vector2(-hx, hz) };
+        var signs = new List<(Vector3 pos, Vector3 inward)>();
+        for (int e = 0; e < 4; e++)
+        {
+            Vector2 a = corners[e], b = corners[(e + 1) % 4];
+            float L = (b - a).magnitude;
+            Vector2 d = (b - a) / L;
+            Vector2 inward = new Vector2(-d.y, d.x);   // 반시계 → 왼쪽이 안쪽
+            float yaw = Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg;
+            for (float t = 0; t < L; t += 3.2f)
+            {
+                Vector2 q = a + d * (t + 1.6f) + inward * 0.4f;
+                mb.Box(0, new Vector3(q.x, 0.55f, q.y), new Vector3(3.1f, 1.1f, 0.7f), yaw);         // 방호벽
+                mb.Box(1, new Vector3(q.x, 0.95f, q.y), new Vector3(3.12f, 0.16f, 0.72f), yaw);       // 경고 띠
+                mb.Box(2, new Vector3(q.x - d.x * 1.55f, 2.3f, q.y - d.y * 1.55f), new Vector3(0.08f, 2.4f, 0.08f), yaw);
+                mb.Box(3, new Vector3(q.x, 2.3f, q.y), new Vector3(3.1f, 2.2f, 0.03f), yaw);         // 철망
+            }
+            for (float t = 50f; t < L - 20f; t += 100f)
+            {
+                Vector2 q = a + d * t + inward * 0.8f;
+                signs.Add((new Vector3(q.x, 0, q.y), new Vector3(inward.x, 0, inward.y)));
+            }
+        }
+        var fence = SurfaceTextures.Fence();
+        var mats = new[] { SurfaceTextures.Pavers(Kit.Hex("A9A49A"), "Concrete_Barrier"), Kit.Mat(Kit.Hex("E8B830")), Kit.Mat(Kit.Hex("6A6E74")), fence };
+        var go = mb.Build("봉쇄선", root, Vector3.zero, mats, true);
+        foreach (var sg in signs)
+        {
+            var panel = Kit.Box(go.transform, sg.pos + Vector3.up * 2.4f + sg.inward * 0.05f, new Vector3(2.6f, 1.0f, 0.06f), Kit.Hex("C8402E"),
+                rot: Quaternion.LookRotation(sg.inward), name: "출입통제");
+            Kit.Label(go.transform, "출입 통제", sg.pos + Vector3.up * 2.55f + sg.inward * 0.1f, Kit.Facing(sg.inward), 0.42f, Color.white);
+            Kit.Label(go.transform, "구미시 격리구역 · 2052", sg.pos + Vector3.up * 2.12f + sg.inward * 0.1f, Kit.Facing(sg.inward), 0.2f, Color.white);
         }
     }
 

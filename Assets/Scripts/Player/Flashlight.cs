@@ -72,6 +72,20 @@ public class Flashlight : MonoBehaviour
         }
     }
 
+    void LateUpdate()
+    {
+        // 1인칭: 손전등이 보는 방향(위아래 포함)을 비춘다
+        if (spot == null) return;
+        var cam = Camera.main;
+        if (IsometricCamera.FirstPerson && cam != null)
+            spot.transform.SetPositionAndRotation(cam.transform.position + cam.transform.right * 0.18f - cam.transform.up * 0.12f, cam.transform.rotation);
+        else
+        {
+            spot.transform.localPosition = new Vector3(0.15f, 1.35f, 0.25f);
+            spot.transform.localRotation = Quaternion.Euler(14f, 0, 0);
+        }
+    }
+
     public void Set(bool on)
     {
         IsOn = on;

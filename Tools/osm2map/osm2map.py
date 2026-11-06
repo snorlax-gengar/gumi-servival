@@ -4,11 +4,14 @@ import json, math, sys, random, hashlib
 src, dst = sys.argv[1], sys.argv[2]
 d = json.load(open(src))
 el = d['elements']
-LAT0, LON0 = 36.128, 128.3295
+# 범위: 인자로 중심(위도 경도)과 반경(m)을 줄 수 있다. 기본 = 구미역 동쪽 상권 1km × 1km
+LAT0 = float(sys.argv[3]) if len(sys.argv) > 3 else 36.128
+LON0 = float(sys.argv[4]) if len(sys.argv) > 4 else 128.33311
+HALF = float(sys.argv[5]) if len(sys.argv) > 5 else 500.0
 KX = math.cos(math.radians(LAT0)) * 111320.0
 KZ = 110540.0
 def xz(p): return (round((p['lon'] - LON0) * KX, 2), round((p['lat'] - LAT0) * KZ, 2))
-HX, HZ = 1126.0, 1105.0
+HX, HZ = HALF, HALF
 def clip_poly(pts):
     def clip(pts, inside, inter):
         out = []
@@ -171,7 +174,7 @@ for e in el:
 allx = [v for b in blds for v in b['p'][0::2]] + [v for r in roads for v in r['p'][0::2]]
 allz = [v for b in blds for v in b['p'][1::2]] + [v for r in roads for v in r['p'][1::2]]
 pois = [p for p in pois if abs(p['x']) <= HX and abs(p['z']) <= HZ]
-out = {'name': 'gumi_core', 'lat0': LAT0, 'lon0': LON0,
+out = {'name': 'gumi_core', 'lat0': LAT0, 'lon0': LON0, 'playHalf': HALF - 8, 'groundHalf': HALF + 24,
        'minX': math.floor(min(allx)), 'maxX': math.ceil(max(allx)), 'minZ': math.floor(min(allz)), 'maxZ': math.ceil(max(allz)),
        'attribution': '© OpenStreetMap contributors (ODbL)',
        'roads': roads, 'buildings': blds, 'areas': areas, 'lines': lines, 'pois': pois}

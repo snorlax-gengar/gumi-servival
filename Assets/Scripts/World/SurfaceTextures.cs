@@ -137,6 +137,24 @@ public static class SurfaceTextures
         return Make(key, tex, 0.05f);
     }
 
+    /// <summary>철망 (알파 잘라내기, 양면)</summary>
+    public static Material Fence()
+    {
+        const string key = "Fence";
+        if (cache.TryGetValue(key, out var m) && m != null) return m;
+        const int N = 64;
+        var tex = New(key, N, true);
+        var px = new Color[N * N];
+        for (int y = 0; y < N; y++)
+            for (int x = 0; x < N; x++)
+            {
+                bool wire = ((x + y) % 16) < 2 || ((x - y + 64) % 16) < 2;
+                px[y * N + x] = wire ? new Color(0.62f, 0.64f, 0.66f, 1f) : new Color(0, 0, 0, 0);
+            }
+        tex.SetPixels(px); tex.Apply(true);
+        return Make(key, tex, 0.5f, true);
+    }
+
     /// <summary>옥상 방수 페인트: 벗겨진 자국·물 고였던 얼룩 (10m에 한 장)</summary>
     public static Texture2D RoofTex(Color baseC, string key)
     {

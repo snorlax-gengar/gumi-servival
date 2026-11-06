@@ -70,7 +70,7 @@ def free(poly, margin=1.0):
                 for p in poly + [(cx, cz)]:
                     if seg_dist(p[0], p[1], s[0], s[1]) < s[2] / 2 + margin: return False
     return True
-HX, HZ = 1120, 1100
+HX = HZ = m.get('playHalf', 1110)
 FILL = {'residential': 1.0, 'living_street': 1.0, 'tertiary': 0.9, 'unclassified': 0.7, 'secondary': 0.8, 'service': 0.35}
 added = 0
 for r in m['roads']:

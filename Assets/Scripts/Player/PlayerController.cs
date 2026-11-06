@@ -95,7 +95,7 @@ public class PlayerController : MonoBehaviour
         cc.height = Mathf.Lerp(cc.height, IsCrouching ? 1.1f : 1.8f, 10f * Time.deltaTime);
         cc.center = new Vector3(0, cc.height / 2f, 0);
 
-        if (!attacking) FaceMoveDirection(move);
+        if (!attacking && !IsometricCamera.FirstPerson) FaceMoveDirection(move);   // 1인칭에서는 카메라가 몸 방향을 정한다
         EmitFootstepNoise();
     }
 
@@ -116,6 +116,7 @@ public class PlayerController : MonoBehaviour
     /// <summary>해당 지점을 즉시 바라본다 (마우스 조준 공격용)</summary>
     public void FaceTowards(Vector3 worldPoint)
     {
+        if (IsometricCamera.FirstPerson) return;
         Vector3 dir = worldPoint - transform.position; dir.y = 0;
         if (dir.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
     }

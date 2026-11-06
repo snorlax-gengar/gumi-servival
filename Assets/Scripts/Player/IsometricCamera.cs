@@ -4,7 +4,9 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// 3인칭 쿼터뷰 카메라.
+/// 카메라: 1인칭(기본) ↔ 3인칭 쿼터뷰, V로 전환.
+/// 1인칭: 마우스로 둘러보기(커서 잠김, Alt를 누르면 커서), 몸은 보는 방향을 향함, 걸을 때 머리 흔들림.
+/// 3인칭 쿼터뷰:
 /// - 마우스 우클릭 드래그: 자유 회전(좌우) + 기울기(상하)
 /// - Q / E: 90도씩 부드럽게 회전
 /// - 마우스 휠: 줌
@@ -38,7 +40,18 @@ public class IsometricCamera : MonoBehaviour
     public bool hideOccluders = true;
     public float occluderRadius = 0.6f;
 
-    public float Yaw => currentYaw;      // 실제 화면 기준 각도 (나침반·미니맵에서 사용)
+    public float Yaw => currentYaw;
+
+    [Header("1인칭")]
+    public bool startFirstPerson = true;
+    public float fpFov = 72f;
+    public float mouseSensitivity = 0.11f;
+    public float eyeHeight = 1.62f, crouchEyeHeight = 1.05f;
+    public static bool FirstPerson { get; private set; }
+    float fpYaw, fpPitch, eye, bobT;
+    float isoFov = 24f, isoNear = 0.3f;
+    PlayerVisual pvis;
+    PlayerController pctrl;      // 실제 화면 기준 각도 (나침반·미니맵에서 사용)
     public bool IsDragging { get; private set; }
 
     float currentYaw, currentPitch;
@@ -69,6 +82,100 @@ public class IsometricCamera : MonoBehaviour
         currentYaw = yaw;
         currentPitch = pitch;
         if (GetComponent<MinimapHUD>() == null) gameObject.AddComponent<MinimapHUD>();
+        var c0 = GetComponent<Camera>();
+        if (c0 != null) { isoFov = c0.fieldOfView; isoNear = c0.nearClipPlane; }
+        FirstPerson = false;
+    }
+
+    void Start()
+    {
+        if (target != null) { pvis = target.GetComponent<PlayerVisual>(); pctrl = target.GetComponent<PlayerController>(); }
+        SetFirstPerson(startFirstPerson);
+    }
+
+    void OnDisable() { FirstPerson = false; Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
+
+    public void SetFirstPerson(bool fp)
+    {
+        FirstPerson = fp;
+        var cam = GetComponent<Camera>();
+        if (fp)
+        {
+            RestoreAllGhosts();
+            fpYaw = target != null ? target.eulerAngles.y : currentYaw;
+            fpPitch = 8f;
+            eye = eyeHeight;
+            if (cam != null) { cam.fieldOfView = fpFov; cam.nearClipPlane = 0.05f; }
+        }
+        else
+        {
+            yaw = fpYaw; currentYaw = fpYaw;
+            if (cam != null) { cam.fieldOfView = isoFov; cam.nearClipPlane = isoNear; }
+            Snap();
+        }
+        if (pvis == null && target != null) pvis = target.GetComponent<PlayerVisual>();
+        if (pvis != null) pvis.SetFirstPerson(fp);
+        UpdateCursor();
+    }
+
+    void UpdateCursor()
+    {
+        var kb = Keyboard.current;
+        bool free = !FirstPerson || MinimapHUD.BigMapOpen || (kb != null && kb.leftAltKey.isPressed);
+        Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = free;
+    }
+
+    void RestoreAllGhosts()
+    {
+        foreach (var kv in ghosted) if (kv.Key != null) Restore(kv.Key, kv.Value);
+        ghosted.Clear();
+    }
+
+    void FirstPersonUpdate()
+    {
+        UpdateCursor();
+        var mouse = Mouse.current;
+        if (mouse != null && Cursor.lockState == CursorLockMode.Locked)
+        {
+            Vector2 d = mouse.delta.ReadValue() * mouseSensitivity;
+            fpYaw += d.x;
+            fpPitch = Mathf.Clamp(fpPitch - d.y, -80f, 80f);
+        }
+        // 몸은 보는 방향
+        target.rotation = Quaternion.Euler(0f, fpYaw, 0f);
+        currentYaw = fpYaw;
+
+        bool crouch = pctrl != null && pctrl.IsCrouching;
+        eye = Mathf.Lerp(eye, crouch ? crouchEyeHeight : eyeHeight, 10f * Time.deltaTime);
+        // 걸을 때 머리 흔들림 (달리면 더 크게)
+        float bob = 0f, sway = 0f;
+        if (pctrl != null && pctrl.IsMoving)
+        {
+            float f = pctrl.IsRunning ? 13f : crouch ? 6f : 9f;
+            float a = pctrl.IsRunning ? 0.05f : 0.025f;
+            bobT += Time.deltaTime * f;
+            bob = Mathf.Sin(bobT) * a;
+            sway = Mathf.Cos(bobT * 0.5f) * a * 0.6f;
+        }
+        Quaternion rot = Quaternion.Euler(fpPitch, fpYaw, 0f);
+        Vector3 pos = target.position + Vector3.up * (eye + bob) + rot * new Vector3(sway, 0, 0.12f);
+        transform.SetPositionAndRotation(pos, rot);
+
+        RenderSettings.fogStartDistance = 12f;
+        RenderSettings.fogEndDistance = 12f + GameManager.FogDepth * 0.8f;
+        var urp = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+        if (urp != null && Mathf.Abs(urp.shadowDistance - 70f) > 5f) urp.shadowDistance = 70f;
+    }
+
+    void OnGUI()
+    {
+        if (!FirstPerson || MinimapHUD.BigMapOpen) return;
+        // 화면 가운데 조준점
+        float s = 4f;
+        GUI.color = new Color(1f, 1f, 1f, 0.75f);
+        GUI.DrawTexture(new Rect(Screen.width * 0.5f - s * 0.5f, Screen.height * 0.5f - s * 0.5f, s, s), Texture2D.whiteTexture);
+        GUI.color = Color.white;
     }
 
     /// <summary>보간 없이 즉시 플레이어 위치로 이동 (스폰 직후 사용)</summary>
@@ -83,6 +190,10 @@ public class IsometricCamera : MonoBehaviour
     void LateUpdate()
     {
         if (target == null) return;
+        var kbv = Keyboard.current;
+        if (kbv != null && kbv.vKey.wasPressedThisFrame) SetFirstPerson(!FirstPerson);
+        if (FirstPerson) { FirstPersonUpdate(); return; }
+        UpdateCursor();
         HandleInput();
 
         currentYaw = Mathf.LerpAngle(currentYaw, yaw, rotateSmooth * Time.deltaTime);

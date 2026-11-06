@@ -3,7 +3,8 @@ import json, math, random, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 m = json.load(open(sys.argv[1]))
-H = 1152.0; N = 1024; S = N / (2 * H)        # px per meter
+H = float(m.get('groundHalf', 1152.0)); N = 1024; S = N / (2 * H)        # px per meter
+PH = float(m.get('playHalf', 1110.0))
 def px(x, z): return ((x + H) * S, (H - z) * S)   # image y down = north up
 def pts(p): return list(zip(p[0::2], p[1::2]))
 urban = Image.new('L', (N, N), 0); du = ImageDraw.Draw(urban)
@@ -55,7 +56,7 @@ rr = random.Random(11)
 trees = []
 def add(x, z, s):
     c = cell(x, z)
-    if c is None or B[c] or K[c] or abs(x) > 1120 or abs(z) > 1100: return False
+    if c is None or B[c] or K[c] or abs(x) > PH or abs(z) > PH: return False
     trees.append((round(x, 1), round(z, 1), s)); return True
 def inside(pt, poly):
     x, z = pt; c = False
@@ -65,10 +66,10 @@ def inside(pt, poly):
     return c
 # wild land (not urban): mountain slopes etc.
 g = 13.0
-x = -1120.0
-while x < 1120:
-    z = -1100.0
-    while z < 1100:
+x = -PH
+while x < PH:
+    z = -PH
+    while z < PH:
         px_, pz_ = x + rr.uniform(-5, 5), z + rr.uniform(-5, 5)
         c = cell(px_, pz_)
         if c and not Uh[c] and rr.random() < 0.8: add(px_, pz_, rr.choice([0, 0, 1]))

@@ -54,7 +54,7 @@ groups = collections.OrderedDict()
 with open(sys.argv[2], encoding='utf-8') as fh:
     for r in csv.DictReader(fh):
         x, z = xz(float(r['경도']), float(r['위도']))
-        if abs(x) > 1115 or abs(z) > 1095: continue
+        if abs(x) > m.get('playHalf', 1110) or abs(z) > m.get('playHalf', 1110): continue
         key = r['건물관리번호'] or f"{round(x)}_{round(z)}"
         g = groups.setdefault(key, {'x': [], 'z': [], 'shops': [], 'bn': r['건물명']})
         g['x'].append(x); g['z'].append(z)

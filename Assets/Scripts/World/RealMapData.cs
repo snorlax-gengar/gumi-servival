@@ -13,6 +13,7 @@ public class RealMapData
     public string attribution;
     public float lat0, lon0;
     public float minX, maxX, minZ, maxZ;
+    public float playHalf, groundHalf;   // 걸어 다닐 수 있는 반경, 바닥 텍스처 반경 (m)
     public MapRoad[] roads;
     public MapBuilding[] buildings;
     public MapArea[] areas;

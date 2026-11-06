@@ -16,6 +16,19 @@ public class PlayerVisual : MonoBehaviour
     CharacterAnimator anim;
     bool animated;
     GameObject wrenchModel, pipeModel;
+
+    /// <summary>1인칭: 몸은 그림자만 남기고 숨김 (손에 든 무기는 보인다)</summary>
+    public void SetFirstPerson(bool fp)
+    {
+        if (model == null) return;
+        foreach (var r in model.GetComponentsInChildren<Renderer>(true))
+        {
+            bool weapon = (wrenchModel != null && r.transform.IsChildOf(wrenchModel.transform))
+                          || (pipeModel != null && r.transform.IsChildOf(pipeModel.transform));
+            if (weapon) continue;
+            r.shadowCastingMode = fp ? UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly : UnityEngine.Rendering.ShadowCastingMode.On;
+        }
+    }
     PlayerController ctrl;
     PlayerStats stats;
     Inventory inv;
