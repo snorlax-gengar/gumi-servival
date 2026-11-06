@@ -100,7 +100,24 @@ public class PlayerController : MonoBehaviour
                 if (g.point.y - o.y > 0.25f) continue;   // 아직 장애물 위
                 Vector3 p = g.point;
                 if (Physics.CheckCapsule(p + Vector3.up * (cc.radius + 0.05f), p + Vector3.up * (1.7f - cc.radius), r, mask, QueryTriggerInteraction.Ignore)) continue;
-                StartTraverse(0, o, p, topY + 0.35f, vaultTime, vaultStamina);
+                // 달리면서 넘으면 허들처럼 낮고 빠르게, 서서 넘으면 손 짚고 넘기
+                if (IsRunning) StartTraverse(0, o, p, topY + 0.2f, vaultTime * 0.75f, vaultStamina);
+                else StartTraverse(0, o, p, topY + 0.35f, vaultTime, vaultStamina);
+                return true;
+            }
+        }
+        else
+        {
+            // 담 넘기: 높은 담(1.35~2.0m)이 얇으면 손 짚고 몸을 넘겨 반대편에 내려선다
+            for (float ahead = low.distance + 0.5f; ahead <= low.distance + 1.4f; ahead += 0.15f)
+            {
+                Vector3 land = o + fwd * ahead;
+                if (!Physics.Raycast(land + Vector3.up * (topY + 0.3f), Vector3.down, out RaycastHit g, topY + 1.5f, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (Mathf.Abs(g.point.y - o.y) > 0.6f) continue;   // 아직 담 위이거나 반대편이 너무 낮음
+                Vector3 p = g.point;
+                if (Physics.CheckCapsule(p + Vector3.up * (cc.radius + 0.05f), p + Vector3.up * (1.7f - cc.radius), r, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (stats != null && stats.stamina < climbStamina) { HUD.ShowMessage("담을 넘기엔 너무 지쳤다", 1.2f); return true; }
+                StartTraverse(4, o, p, topY + 0.25f, 0.85f + topY * 0.2f, climbStamina);
                 return true;
             }
         }
@@ -148,6 +165,16 @@ public class PlayerController : MonoBehaviour
             float up = Mathf.SmoothStep(0, 1, Mathf.Clamp01(t / 0.65f));
             float fw = Mathf.SmoothStep(0, 1, Mathf.Clamp01((t - 0.45f) / 0.55f));
             p = new Vector3(Mathf.Lerp(vaultFrom.x, vaultTo.x, fw), Mathf.Lerp(vaultFrom.y, vaultTo.y + 0.05f, up), Mathf.Lerp(vaultFrom.z, vaultTo.z, fw));
+        }
+        else if (vaultKind == 4)
+        {
+            // 담 넘기: 손 짚고 몸을 끌어올림(0~40%) → 담 위로 넘김(40~60%) → 반대편에 내려섬(60~100%)
+            float fw = Mathf.SmoothStep(0, 1, Mathf.Clamp01((t - 0.15f) / 0.7f));
+            float topAbs = vaultFrom.y + vaultPeak;
+            float y = t < 0.4f ? Mathf.Lerp(vaultFrom.y, topAbs, Mathf.SmoothStep(0, 1, t / 0.4f))
+                    : t < 0.6f ? topAbs
+                    : Mathf.Lerp(topAbs, vaultTo.y, Mathf.Pow((t - 0.6f) / 0.4f, 1.6f));
+            p = new Vector3(Mathf.Lerp(vaultFrom.x, vaultTo.x, fw), y, Mathf.Lerp(vaultFrom.z, vaultTo.z, fw));
         }
         else
         {
