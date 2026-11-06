@@ -20,7 +20,9 @@ Mixamo(https://www.mixamo.com, 어도비 무료 계정) 파일은 약관상 원�
 | HitReaction.fbx | Hit Reaction (선택) |
 | Jump.fbx | Jump (선택, In Place) |
 | Fall.fbx | Falling Idle (선택) |
-| Vault.fbx | Jump Over 또는 Vault (선택, In Place) |
+| Vault.fbx | Vault Over Box (선택) — 서서 손 짚고 넘기·담 넘기 |
+| Hurdle.fbx | Jump Over (선택) — 달리면서 넘기 |
+| Drop.fbx | Jump From Wall (선택) — 높은 곳에서 뛰어내리기 |
 | Climb.fbx | Climbing 또는 Climbing Up Wall (선택, In Place) |
 
 ## 텍스처 꺼내기 (필수)

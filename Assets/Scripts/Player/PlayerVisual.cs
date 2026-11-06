@@ -101,6 +101,8 @@ public class PlayerVisual : MonoBehaviour
                 { CharacterAnimator.Slot.Fall, new[] { "fall" } },
                 { CharacterAnimator.Slot.Vault, new[] { "vault" } },
                 { CharacterAnimator.Slot.Climb, new[] { "climb" } },
+                { CharacterAnimator.Slot.Hurdle, new[] { "hurdle" } },
+                { CharacterAnimator.Slot.Drop, new[] { "drop" } },
             },
             null);
         if (!ok) { Destroy(t.gameObject); return false; }
@@ -144,16 +146,25 @@ public class PlayerVisual : MonoBehaviour
     }
 
     // 넘기·기어오르기·점프 동작 (Mixamo 파일이 있을 때)
+    // 넘기·기어오르기·점프 동작 (Mixamo 파일이 있을 때)
+    //  0 넘기: 달리면 허들(Hurdle), 서서는 손 짚고 넘기(Vault)   1 담장 기어오르기(Climb)
+    //  2 점프   3 낮은 곳에 올라서기   4 담 넘기(손 짚고 넘어 반대편에 내려섬)
+    float lastTraverse = -10f;
+    bool Play(CharacterAnimator.Slot s, float d, float from, float to) => anim.PlayAction(s, d, from, to);
     void OnTraverse(int kind, float duration)
     {
         if (anim == null) return;
+        lastTraverse = Time.time;
         switch (kind)
         {
-            case 0: if (!anim.PlayAction(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.85f)) anim.PlayAction(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.8f); break;
-            case 1: anim.PlayAction(CharacterAnimator.Slot.Climb, duration, 0.05f, 0.95f); break;
-            case 4: if (!anim.PlayAction(CharacterAnimator.Slot.Vault, duration, 0.05f, 0.95f)) anim.PlayAction(CharacterAnimator.Slot.Climb, duration, 0.3f, 0.9f); break;
-            case 3: if (!anim.PlayAction(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.6f)) anim.PlayAction(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.6f); break;
-            case 2: anim.PlayAction(CharacterAnimator.Slot.Jump, 0.45f, 0.2f, 0.55f); break;
+            case 0:
+                if (ctrl != null && ctrl.IsRunning && Play(CharacterAnimator.Slot.Hurdle, duration, 0.1f, 0.85f)) break;
+                if (!Play(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.85f)) Play(CharacterAnimator.Slot.Hurdle, duration, 0.1f, 0.85f);
+                break;
+            case 1: Play(CharacterAnimator.Slot.Climb, duration, 0.05f, 0.95f); break;
+            case 2: Play(CharacterAnimator.Slot.Jump, 0.45f, 0.2f, 0.55f); break;
+            case 3: if (!Play(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.6f)) Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.6f); break;
+            case 4: if (!Play(CharacterAnimator.Slot.Vault, duration, 0.05f, 0.95f)) Play(CharacterAnimator.Slot.Climb, duration, 0.3f, 0.9f); break;
         }
     }
 
@@ -293,7 +304,12 @@ public class PlayerVisual : MonoBehaviour
         // 웅크리기: 동작을 느리게 하고 몸을 낮춘다 (전용 동작이 없어서 자세로 표현)
         crouch = Mathf.MoveTowards(crouch, ctrl != null && ctrl.IsCrouching ? 1f : 0f, 5f * Time.deltaTime);
         // 0.25초 넘게 공중이면 낙하 동작
-        airTime = ctrl != null && ctrl.IsAirborne ? airTime + Time.deltaTime : 0f;
+        bool air = ctrl != null && ctrl.IsAirborne;
+        // 걷다가 높은 곳(1.2m 이상)에서 떨어지기 시작하면 뛰어내리는 동작
+        if (air && airTime == 0f && Time.time - lastTraverse > 0.5f
+            && !Physics.Raycast(transform.position + Vector3.up * 0.2f, Vector3.down, 1.4f, ~((1 << 30) | (1 << 31)), QueryTriggerInteraction.Ignore))
+            Play(CharacterAnimator.Slot.Drop, 0.55f, 0.3f, 0.75f);
+        airTime = air ? airTime + Time.deltaTime : 0f;
         anim.SetAirborne(airTime > 0.25f);
 
         if (anim.HasClip(CharacterAnimator.Slot.Crouch))

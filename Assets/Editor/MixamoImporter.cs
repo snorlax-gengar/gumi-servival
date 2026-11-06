@@ -13,11 +13,11 @@ public class MixamoImporter : AssetPostprocessor
     static readonly string[] Loops = { "Idle", "Walk", "Run", "CrouchWalk", "Fall" };
 
     // 점프·넘기·기어오르기: 몸이 위로 솟는 높이는 버린다 (높이는 PlayerController가 직접 움직임 → 두 배로 뜨지 않게)
-    static readonly string[] Traverse = { "Jump", "Vault", "Climb" };
+    static readonly string[] Traverse = { "Jump", "Vault", "Climb", "Hurdle", "Drop" };
 
     static bool IsMixamo(string p) => p.Replace('\\', '/').Contains(Folder);
 
-    public override uint GetVersion() => 5;
+    public override uint GetVersion() => 6;
 
     // 캐릭터에서 뽑아낸 텍스처: 노멀맵은 노멀맵으로
     void OnPreprocessTexture()

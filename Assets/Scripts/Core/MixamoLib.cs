@@ -14,7 +14,7 @@ public static class MixamoLib
 {
     public const string Root = "Mixamo/";
     static readonly string[] AnimFiles = { "Idle", "Walk", "Run", "CrouchWalk", "AttackMelee", "AttackBat", "Dying", "MutantPunch", "HitReaction",
-                                           "Jump", "Fall", "Vault", "Climb" };
+                                           "Jump", "Fall", "Vault", "Climb", "Hurdle", "Drop" };
     static AnimationClip[] cache;
 
     public static bool HasModel(string name) => AssetLib.Has(Root + name);

@@ -12,8 +12,8 @@ using UnityEngine.Playables;
 /// </summary>
 public class CharacterAnimator : MonoBehaviour
 {
-    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5, Jump = 6, Fall = 7, Vault = 8, Climb = 9 }
-    const int SlotCount = 10;
+    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5, Jump = 6, Fall = 7, Vault = 8, Climb = 9, Hurdle = 10, Drop = 11 }
+    const int SlotCount = 12;
 
     public float walkReference = 1.6f;   // 이 속도(m/s)에서 걷기 동작이 완전히 섞인다
     public float runReference = 4.5f;    // 이 속도에서 달리기 동작이 완전히 섞인다
