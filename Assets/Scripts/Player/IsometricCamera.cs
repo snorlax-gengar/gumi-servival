@@ -72,6 +72,8 @@ public class IsometricCamera : MonoBehaviour
     }
     float shoulderCur;
     float fpYaw, fpPitch, eye, bobT;
+    /// <summary>시점 각도를 직접 정한다 (자동 테스트용)</summary>
+    public void SetLook(float yawDeg, float pitchDeg) { fpYaw = yawDeg; fpPitch = pitchDeg; }
     float isoFov = 24f, isoNear = 0.3f;
     PlayerVisual pvis;
     PlayerController pctrl;      // 실제 화면 기준 각도 (나침반·미니맵에서 사용)
@@ -225,10 +227,14 @@ public class IsometricCamera : MonoBehaviour
 
         bool crouch = pctrl != null && pctrl.IsCrouching;
         Quaternion rot = Quaternion.Euler(fpPitch, fpYaw, 0f);
+        bool trav = pctrl != null && pctrl.IsTraversing;
+        traverseGrace = trav ? 0.1f : Mathf.Max(0f, traverseGrace - Time.deltaTime);
+        // 넘는 동안 카메라를 살짝 들어 올려 담 너머를 내려다보게 (담이 화면을 가리지 않게)
+        travLift = Mathf.Lerp(travLift, trav ? 1.0f : 0f, (trav ? 6f : 3f) * Time.deltaTime);
         // 벽에 붙어 걸을 때 카메라가 벽 속으로 들어가지 않게: ① 머리→어깨 옆, ② 어깨→뒤 두 번 검사
         const float camR = 0.25f;
         int mask = ~((1 << AndroidLayer) | (1 << 30) | (1 << 31));
-        Vector3 head = target.position + Vector3.up * (crouch ? shoulderHeight - 0.45f : shoulderHeight);
+        Vector3 head = target.position + Vector3.up * ((crouch ? shoulderHeight - 0.45f : shoulderHeight) + travLift);
         Vector3 side = rot * Vector3.right;
         float sideWant = shoulderRight;
         if (CamCast(head, side, shoulderRight, mask, camR, out float sd)) sideWant = Mathf.Max(0f, sd - 0.05f);
@@ -248,6 +254,7 @@ public class IsometricCamera : MonoBehaviour
     }
 
     float shoulderSide = 0.6f;
+    float traverseGrace, travLift;
 
     // 플레이어 자신은 무시하고 가장 가까운 벽까지 거리
     bool CamCast(Vector3 from, Vector3 dir, float dist, int mask, float radius, out float d)
@@ -258,7 +265,9 @@ public class IsometricCamera : MonoBehaviour
         {
             if (h.transform.IsChildOf(target)) continue;
             var bs = h.collider.bounds.size;
-            if (bs.y < 2.5f && bs.x < 6f && bs.z < 6f) continue;   // 상자·차 같은 낮은 것은 무시 (넘을 때 카메라가 머리 속으로 파고들지 않게)
+            // 넘는 동안(과 직후 0.4초)만 상자·담 같은 낮은 것을 무시: 넘는 순간 카메라가 머리 속으로 파고들지 않게.
+            // 평소에는 낮은 담도 막아서 화면을 가리지 않는다
+            if (traverseGrace > 0f && bs.y < 2.5f && bs.x < 6f && bs.z < 6f) continue;
             if (h.distance <= 0f) { d = 0f; return true; }   // 이미 겹침
             if (h.distance < d) { d = h.distance; any = true; }
         }

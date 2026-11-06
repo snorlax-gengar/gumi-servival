@@ -55,6 +55,8 @@ public class ParkourTest : MonoBehaviour
 
         ctrl.Teleport(course.position + new Vector3(0, 0.05f, 0));
         ctrl.transform.rotation = Quaternion.identity;
+        var cam = FindAnyObjectByType<IsometricCamera>();
+        if (cam != null) cam.SetLook(0f, 12f);   // 실제 플레이처럼 등 뒤에서 본다
         yield return new WaitForSeconds(0.8f);
 
         var rec = GameRecorder.Instance;
