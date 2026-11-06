@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 쓰러진 안드로이드. F로 분해하면 부품(재화)을 얻는다.
+/// 쓰러진 안드로이드. E로 분해하면 부품(재화)을 얻는다.
 /// 분해는 금속 소리를 내서 주변 안드로이드가 올 수 있다.
 /// 기습으로 쓰러뜨리면 부품이 덜 상해서 더 많이 나온다.
 /// 오래 방치하면(실제 5분) 사라진다.
@@ -34,7 +34,7 @@ public class AndroidSalvage : MonoBehaviour, IInteractable
         Destroy(gameObject, despawnSeconds);
     }
 
-    public string Prompt => done ? "" : $"[F] 안드로이드 분해 (부품 {parts}개)";
+    public string Prompt => done ? "" : $"[E] 안드로이드 분해 (부품 {parts}개)";
 
     public void Interact(GameObject who)
     {

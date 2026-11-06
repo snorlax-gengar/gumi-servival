@@ -35,6 +35,8 @@ public class GameManager : MonoBehaviour
         Instance = this;
         if (GetComponent<ScenarioManager>() == null) gameObject.AddComponent<ScenarioManager>();
         if (GetComponent<PostFX>() == null) gameObject.AddComponent<PostFX>();
+        if (GetComponent<PauseMenu>() == null) gameObject.AddComponent<PauseMenu>();
+        Sfx.Ensure();
         var p = GameObject.FindGameObjectWithTag("Player");
         if (p != null) player = p.GetComponent<PlayerStats>();
     }
@@ -48,9 +50,9 @@ public class GameManager : MonoBehaviour
         RenderSettings.fogStartDistance = 45f;
         RenderSettings.fogEndDistance = 240f;
         if (CityGenerator.RealMapActive)
-            HUD.ShowMessage("2052년 구미, 구미역 앞 원도심. 배가 고프다...\n바로 옆 주황색 공구함(F)부터 뒤져 보자", 8f);
+            HUD.ShowMessage("2052년 구미, 구미역 앞 원도심. 배가 고프다...\n바로 옆 주황색 공구함(E)부터 뒤져 보자", 8f);
         else
-            HUD.ShowMessage("배가 고프다... 바로 옆 주황색 공구함(F)부터 뒤져 보자\n동쪽 공단은 안드로이드 소굴이다", 8f);
+            HUD.ShowMessage("배가 고프다... 바로 옆 주황색 공구함(E)부터 뒤져 보자\n동쪽 공단은 안드로이드 소굴이다", 8f);
     }
 
     void Update()

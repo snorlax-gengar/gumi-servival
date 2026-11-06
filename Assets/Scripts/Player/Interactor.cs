@@ -26,8 +26,13 @@ public class Interactor : MonoBehaviour
         if (stats != null && stats.IsDead) return;
 
         var kb = UnityEngine.InputSystem.Keyboard.current;
-        if (Current != null && kb != null && kb.fKey.wasPressedThisFrame)
+        if (PauseMenu.IsPaused) return;
+        if (Current != null && kb != null && (kb.eKey.wasPressedThisFrame || kb.fKey.wasPressedThisFrame))
+        {
             Current.Interact(gameObject);
+            var mb = Current as MonoBehaviour;
+            Sfx.Play(Current is LootContainer ? "loot" : "door", mb != null ? mb.transform.position : transform.position, 0.8f, 0.08f, 0.4f);
+        }
     }
 
     IInteractable FindNearest()

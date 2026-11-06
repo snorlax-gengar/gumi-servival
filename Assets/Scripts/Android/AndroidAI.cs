@@ -72,8 +72,31 @@ public class AndroidAI : MonoBehaviour
     }
 
     /// <summary>기습당해 잠시 멈춤. 끝나면 추적으로 전환.</summary>
+    AudioSource hum;
+
+    /// <summary>밀쳐져 비틀거림: 밀린 방향으로 1.5m 정도 밀려나고 잠시 멈춤</summary>
+    public void Stagger(Vector3 dir, float seconds)
+    {
+        if (CurrentState == State.Disabled) return;
+        Stun(seconds);
+        StartCoroutine(PushBack(dir));
+        if (player != null) { lastKnownPos = player.position; }
+    }
+
+    System.Collections.IEnumerator PushBack(Vector3 dir)
+    {
+        float t = 0f;
+        while (t < 0.22f && agent.enabled && agent.isOnNavMesh)
+        {
+            agent.Move(dir * 7f * Time.deltaTime);
+            t += Time.deltaTime;
+            yield return null;
+        }
+    }
+
     public void Stun(float seconds)
     {
+        if (seconds >= 1f) Sfx.Play("android_stun", transform.position + Vector3.up, 0.5f, 0.1f, 1f, 20f);
         stunTimer = Mathf.Max(stunTimer, seconds);
         hasPendingNoise = false;
         if (agent.enabled && agent.isOnNavMesh && agent.hasPath) agent.ResetPath();
@@ -114,6 +137,7 @@ public class AndroidAI : MonoBehaviour
     {
         // NavMesh는 LevelNavMesh가 Awake에서 굽기 때문에, 에이전트는 그 뒤(Start)에 켠다
         agent.enabled = true;
+        hum = Sfx.Loop("android_hum", transform, 0.18f, 14f);   // 가까이 가면 들리는 낮은 기계음
         if (!agent.isOnNavMesh)
             Debug.LogWarning($"{name}: NavMesh 위에 있지 않습니다. Level 오브젝트에 LevelNavMesh가 있는지 확인하세요.");
     }
@@ -187,6 +211,7 @@ public class AndroidAI : MonoBehaviour
                 alertTimer = alertCooldown;
                 NoiseSystem.Emit(transform.position, alertRadius);
                 HUD.ShowMessage("삐— 안드로이드가 경보를 울렸다!", 2f);
+                Sfx.Play("android_alert", transform.position + Vector3.up * 1.6f, 1f, 0.05f, 1f, 45f);
             }
             lastKnownPos = player.position;
             lostTimer = loseSightTime;
@@ -335,6 +360,8 @@ public class AndroidAI : MonoBehaviour
     void OnDeath()
     {
         CurrentState = State.Disabled;
+        Sfx.Play("android_die", transform.position + Vector3.up, 0.9f, 0.1f, 1f, 30f);
+        if (hum != null) hum.Stop();
         ScenarioManager.Kills++;
         if (agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
         agent.enabled = false; // 에이전트가 위치를 다시 끌어올리지 않도록
@@ -348,7 +375,7 @@ public class AndroidAI : MonoBehaviour
         // 분해해서 부품을 얻을 수 있게 된다. 기습(기절 중)으로 쓰러뜨리면 부품이 더 많다
         int parts = Random.Range(4, 9) + (IsStunned ? 3 : 0);
         gameObject.AddComponent<AndroidSalvage>().Init(parts);
-        HUD.ShowMessage(IsStunned ? "안드로이드 정지 — 깔끔하게 쓰러뜨렸다 [F] 분해" : "안드로이드 정지 — [F]로 분해해 부품을 얻자", 3f);
+        HUD.ShowMessage(IsStunned ? "안드로이드 정지 — 깔끔하게 쓰러뜨렸다 [E] 분해" : "안드로이드 정지 — [E]로 분해해 부품을 얻자", 3f);
     }
 
     // ---------- 전환 ----------

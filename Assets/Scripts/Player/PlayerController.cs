@@ -48,6 +48,8 @@ public class PlayerController : MonoBehaviour
     public float vaultMaxHeight = 1.35f;    // 이보다 낮은 장애물은 넘어간다 (차, 방호벽, 화분, 낮은 담)
     public float vaultTime = 0.45f;
     bool vaulting;
+    bool crouchToggle, wasGrounded = true;
+    float stepTimer;
     float vaultT;
     Vector3 vaultFrom, vaultTo;
     float vaultPeak;
@@ -113,6 +115,7 @@ public class PlayerController : MonoBehaviour
         var kb = Keyboard.current;
         if (kb == null) return;
         if (vaulting) { UpdateVault(); return; }
+        if (PauseMenu.IsPaused) return;
 
         // 점프 / 넘기 (전체 지도가 열려 있으면 Space는 지도용)
         if (kb.spaceKey.wasPressedThisFrame && !MinimapHUD.BigMapOpen && cc.isGrounded && attackLock <= 0f
@@ -123,7 +126,9 @@ public class PlayerController : MonoBehaviour
             {
                 verticalVel = jumpSpeed;
                 if (stats != null) stats.stamina -= jumpStamina;
+                Sfx.Play("jump", transform.position, 0.5f, 0.1f, 0f);
             }
+            else if (vaulting) Sfx.Play("jump", transform.position, 0.7f, 0.1f, 0f);
             if (vaulting) return;
         }
 
@@ -135,7 +140,9 @@ public class PlayerController : MonoBehaviour
         if (kb.aKey.isPressed) input.x -= 1;
         input = Vector2.ClampMagnitude(input, 1f);
 
-        IsCrouching = kb.leftCtrlKey.isPressed;
+        if (kb.cKey.wasPressedThisFrame) crouchToggle = !crouchToggle;
+        if (kb.leftShiftKey.isPressed && input.sqrMagnitude > 0.01f) crouchToggle = false;   // 달리면 일어선다
+        IsCrouching = kb.leftCtrlKey.isPressed || crouchToggle;
         bool canRun = stats == null || stats.CanRun;
         IsRunning = kb.leftShiftKey.isPressed && !IsCrouching && canRun && input.sqrMagnitude > 0.01f;
         IsMoving = input.sqrMagnitude > 0.01f;
@@ -174,7 +181,20 @@ public class PlayerController : MonoBehaviour
         cc.height = Mathf.Lerp(cc.height, IsCrouching ? 1.1f : 1.8f, 10f * Time.deltaTime);
         cc.center = new Vector3(0, cc.height / 2f, 0);
 
-        if (!attacking && !IsometricCamera.MouseLook) FaceMoveDirection(move);   // 1인칭에서는 카메라가 몸 방향을 정한다
+        if (!attacking && !IsometricCamera.MouseLook) FaceMoveDirection(move);
+
+        // 발소리 · 착지 소리
+        if (cc.isGrounded && !wasGrounded) Sfx.Play("land", transform.position, 0.8f, 0.05f, 0f);
+        wasGrounded = cc.isGrounded;
+        if (IsMoving && cc.isGrounded)
+        {
+            stepTimer -= Time.deltaTime;
+            if (stepTimer <= 0f)
+            {
+                stepTimer = IsRunning ? 0.32f : IsCrouching ? 0.7f : 0.48f;
+                Sfx.Play("step", transform.position, IsCrouching ? 0.15f : IsRunning ? 0.55f : 0.35f, 0.12f, 0f);
+            }
+        }   // 1인칭에서는 카메라가 몸 방향을 정한다
         EmitFootstepNoise();
     }
 

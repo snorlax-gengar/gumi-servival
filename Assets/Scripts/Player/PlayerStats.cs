@@ -64,6 +64,9 @@ public class PlayerStats : MonoBehaviour
     {
         if (IsDead) return;
         health = Mathf.Max(0, health - amount);
+        Sfx.Play("hurt", transform.position, 0.9f, 0.08f, 0f);
+        Sfx.DamageFlash(Mathf.Clamp01(amount / 25f));
+        IsometricCamera.Shake(0.5f);
         if (health <= 0) Die();
     }
 

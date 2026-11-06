@@ -37,7 +37,7 @@ public class LootContainer : MonoBehaviour, IInteractable
 
     public string Prompt => searched && contents.Count == 0
         ? $"{containerName} (비어 있음)"
-        : $"[F] {containerName} 뒤지기";
+        : $"[E] {containerName} 뒤지기";
 
     public void Interact(GameObject who)
     {

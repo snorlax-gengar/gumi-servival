@@ -81,6 +81,7 @@ public class Inventory : MonoBehaviour
             case ItemType.Weapon:
                 EquippedWeapon = EquippedWeapon == item ? null : item;
                 OnChanged?.Invoke();
+                Sfx.Play("equip", transform.position, 0.7f, 0.06f, 0f);
                 break;
             case ItemType.Food:
             case ItemType.Drink:
@@ -89,17 +90,50 @@ public class Inventory : MonoBehaviour
                 stats.Drink(item.thirstRestore);
                 stats.Heal(item.healthRestore);
                 RemoveOne(item);
+                Sfx.Play("eat", transform.position, 0.6f, 0.1f, 0f);
+                HUD.ShowMessage($"{item.displayName} 사용", 1.2f);
                 break;
         }
     }
 
+    /// <summary>Tab으로 연 가방 (커서가 풀려 클릭으로 쓰기·장착)</summary>
+    public static bool Open { get; private set; }
+
     void Update()
     {
         var kb = UnityEngine.InputSystem.Keyboard.current;
-        if (kb == null) return;
+        if (kb == null || PauseMenu.IsPaused) return;
         for (int i = 0; i < 9; i++)
         {
             if (kb[UnityEngine.InputSystem.Key.Digit1 + i].wasPressedThisFrame) Use(i);
         }
+        if (kb.tabKey.wasPressedThisFrame) Open = !Open;
+
+        // H: 체력 회복 아이템 바로 쓰기
+        if (kb.hKey.wasPressedThisFrame)
+        {
+            int idx = stacks.FindIndex(s => s.item.type == ItemType.Medical);
+            if (idx >= 0) Use(idx); else HUD.ShowMessage("붕대가 없다", 1.2f);
+        }
+        // 마우스 휠: 무기 바꾸기 (맨손 포함 순환)
+        var mouse = UnityEngine.InputSystem.Mouse.current;
+        if (mouse != null && IsometricCamera.MouseLook && !MinimapHUD.PointerOverMap && !MinimapHUD.BigMapOpen)
+        {
+            float sc = mouse.scroll.ReadValue().y;
+            if (Mathf.Abs(sc) > 0.01f) CycleWeapon(sc > 0 ? -1 : 1);
+        }
+    }
+
+    void CycleWeapon(int dir)
+    {
+        var weapons = stacks.FindAll(s => s.item.type == ItemType.Weapon);
+        if (weapons.Count == 0) return;
+        int cur = weapons.FindIndex(s => s.item == EquippedWeapon);   // -1 = 맨손
+        int n = weapons.Count + 1;
+        int next = ((cur + 1 + dir) % n + n) % n - 1;
+        EquippedWeapon = next < 0 ? null : weapons[next].item;
+        OnChanged?.Invoke();
+        Sfx.Play("equip", transform.position, 0.6f, 0.06f, 0f);
+        HUD.ShowMessage(EquippedWeapon != null ? $"{EquippedWeapon.displayName} 들기" : "맨손", 1f);
     }
 }

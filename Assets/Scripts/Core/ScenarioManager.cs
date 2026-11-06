@@ -88,7 +88,7 @@ public class ScenarioManager : MonoBehaviour
         else if (!gen.Inspected)
         {
             Objective = "내 원룸 1층 필로티의 발전기를 살펴보자";
-            Hint = "주황색 = 손댈 수 있는 것. 가까이 가서 F";
+            Hint = "주황색 = 손댈 수 있는 것. 가까이 가서 E";
             ObjectivePos = CityGenerator.SafehousePos;
         }
         else if (gen.Current == Generator.State.Broken)
@@ -101,7 +101,7 @@ public class ScenarioManager : MonoBehaviour
             }
             else if (parts < gen.partsToRepair)
             {
-                Hint = "안드로이드를 쓰러뜨려 분해(F)하면 부품이 나온다";
+                Hint = "안드로이드를 쓰러뜨려 분해(E)하면 부품이 나온다";
                 ObjectivePos = null;
             }
             else

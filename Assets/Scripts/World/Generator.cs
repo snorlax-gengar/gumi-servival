@@ -43,9 +43,9 @@ public class Generator : MonoBehaviour, IInteractable
         {
             switch (Current)
             {
-                case State.Broken: return $"[F] 고장난 발전기 수리 (연료통 1 + 부품 {partsToRepair})";
-                case State.Off: return FuelHours > 0.05f ? $"[F] 발전기 켜기 (연료 {FuelHours:0.0}시간)" : "[F] 발전기에 연료 넣기";
-                default: return $"[F] 발전기 끄기 (연료 {FuelHours:0.0}시간 남음)";
+                case State.Broken: return $"[E] 고장난 발전기 수리 (연료통 1 + 부품 {partsToRepair})";
+                case State.Off: return FuelHours > 0.05f ? $"[E] 발전기 켜기 (연료 {FuelHours:0.0}시간)" : "[E] 발전기에 연료 넣기";
+                default: return $"[E] 발전기 끄기 (연료 {FuelHours:0.0}시간 남음)";
             }
         }
     }
@@ -73,7 +73,7 @@ public class Generator : MonoBehaviour, IInteractable
             FuelHours += hoursPerFuel;
             Current = State.Off;
             NoiseSystem.Emit(transform.position, 10f);
-            HUD.ShowMessage("발전기를 고쳤다! 다시 F를 누르면 켜진다", 3f);
+            HUD.ShowMessage("발전기를 고쳤다! 다시 E를 누르면 켜진다", 3f);
             Apply();
             return;
         }
@@ -124,9 +124,14 @@ public class Generator : MonoBehaviour, IInteractable
         if (lamp != null) lamp.intensity = 3.2f + Mathf.PerlinNoise(Time.time * 6f, 0f) * 0.6f; // 전구 떨림
     }
 
+    AudioSource hum;
+
     void Apply()
     {
         bool on = Current == State.On;
+        // 켜져 있으면 웅웅 도는 소리 (멀리서도 들려 위험하다는 느낌)
+        if (on && hum == null) hum = Sfx.Loop("generator", transform, 0.6f, 30f);
+        if (hum != null) { if (on && !hum.isPlaying) hum.Play(); else if (!on) hum.Stop(); }
         if (lamp != null) lamp.enabled = on;
         if (bulb != null) bulb.sharedMaterial = Kit.Mat(Kit.WarmLight, on ? 2.5f : 0f);
         if (statusLight != null)

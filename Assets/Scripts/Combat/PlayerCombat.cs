@@ -81,10 +81,15 @@ public class PlayerCombat : MonoBehaviour
     void Update()
     {
         cooldown -= Time.deltaTime;
+        shoveTimer -= Time.deltaTime;
         AnimateSwing();
         if (stats != null && stats.IsDead) return;
+        if (PauseMenu.IsPaused || Inventory.Open) return;
 
         var mouse = Mouse.current;
+        // 우클릭: 밀치기 (좀보이드식) — 피해는 없지만 안드로이드를 밀어내 비틀거리게 해 틈을 만든다
+        if (mouse != null && mouse.rightButton.wasPressedThisFrame && shoveTimer <= 0f && IsometricCamera.MouseLook)
+            Shove();
         if (mouse == null || !mouse.leftButton.wasPressedThisFrame || cooldown > 0) return;
         // 인벤토리 버튼을 누른 클릭은 공격이 아니다
         Vector2 mp = mouse.position.ReadValue();
@@ -111,6 +116,19 @@ public class PlayerCombat : MonoBehaviour
         }
         if (stats != null) stats.stamina -= cost;
         StartSwing(range);
+        Sfx.Play("swing", transform.position, 0.6f, 0.15f, 0f);
+        StartCoroutine(DelayedHit(dmg, range, noise, w));
+    }
+
+    [Header("타격 타이밍 · 밀치기")]
+    public float hitDelay = 0.26f;        // 휘두르기 시작 → 맞는 순간 (동작과 맞춤)
+    public float shoveRange = 1.8f, shoveCooldown = 0.9f, shoveStamina = 12f, shoveStagger = 1.1f;
+    float shoveTimer;
+
+    System.Collections.IEnumerator DelayedHit(float dmg, float range, float noise, ItemData w)
+    {
+        yield return new WaitForSeconds(hitDelay);
+        if (stats != null && stats.IsDead) yield break;
         bool crouching = controller != null && controller.IsCrouching;
         bool anyAmbush = false;
 
@@ -135,6 +153,10 @@ public class PlayerCombat : MonoBehaviour
             }
             d.TakeDamage(dealt, transform.position);
             hitSomething = true;
+            // 타격감: 쇳소리, 아주 짧은 멈춤, 화면 흔들림
+            Sfx.Play(w != null ? "hit_metal" : "hit_punch", d.transform.position + Vector3.up, 1f, 0.1f, 0.6f);
+            Sfx.HitStop(anyAmbush ? 0.11f : 0.055f);
+            IsometricCamera.Shake(anyAmbush ? 0.45f : 0.25f);
         }
 
         // 소리는 휘두른 뒤에 퍼진다 (기습은 조용하다)
@@ -143,6 +165,36 @@ public class PlayerCombat : MonoBehaviour
         if (anyAmbush) HUD.ShowMessage(crouching ? "기습! 급소를 노렸다" : "기습!", 1.5f);
         else if (!hitSomething) HUD.ShowMessage("빗나감", 0.4f);
         else if (w == null) HUD.ShowMessage("맨손은 약하다. 무기를 찾자", 1.2f);
+    }
+
+    void Shove()
+    {
+        if (stats != null && stats.stamina < shoveStamina) { HUD.ShowMessage("너무 지쳤다 (스태미나 부족)"); return; }
+        shoveTimer = shoveCooldown;
+        if (stats != null) stats.stamina -= shoveStamina;
+        if (controller != null) controller.LockForAttack(0.3f);
+        var visual = GetComponent<PlayerVisual>();
+        if (visual != null) visual.TriggerSwing();
+        Sfx.Play("swing", transform.position, 0.5f, 0.2f, 0f);
+
+        int n = Physics.OverlapSphereNonAlloc(transform.position + Vector3.up, shoveRange + 0.5f, hits);
+        bool any = false;
+        for (int i = 0; i < n; i++)
+        {
+            var ai = hits[i].GetComponentInParent<AndroidAI>();
+            if (ai == null || ai.CurrentState == AndroidAI.State.Disabled) continue;
+            Vector3 to = ai.transform.position - transform.position; to.y = 0;
+            if (to.magnitude > shoveRange + 0.5f || Vector3.Angle(transform.forward, to) > 70f) continue;
+            ai.Stagger(to.normalized, shoveStagger);
+            any = true;
+        }
+        if (any)
+        {
+            Sfx.Play("shove", transform.position + transform.forward, 0.9f, 0.1f, 0.3f);
+            Sfx.HitStop(0.04f);
+            IsometricCamera.Shake(0.2f);
+        }
+        NoiseSystem.Emit(transform.position, 5f);
     }
 
     void StartSwing(float range)

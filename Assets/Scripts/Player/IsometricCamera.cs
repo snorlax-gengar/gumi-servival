@@ -57,6 +57,19 @@ public class IsometricCamera : MonoBehaviour
     public static bool Shoulder { get; private set; }
     /// <summary>마우스로 둘러보는 시점 (1인칭 또는 어깨). 몸이 보는 방향을 향한다.</summary>
     public static bool MouseLook => FirstPerson || Shoulder;
+
+    // ---- 화면 흔들림 ----
+    public static bool ShakeEnabled = true;
+    static float trauma;
+    /// <summary>화면 흔들림 (0~1, 겹치면 쌓임)</summary>
+    public static void Shake(float amount) { if (ShakeEnabled) trauma = Mathf.Clamp01(trauma + amount); }
+    Quaternion ShakeRot()
+    {
+        if (trauma <= 0f) return Quaternion.identity;
+        trauma = Mathf.Max(0f, trauma - Time.unscaledDeltaTime * 2.2f);
+        float s = trauma * trauma * 4f, t = Time.unscaledTime * 30f;
+        return Quaternion.Euler((Mathf.PerlinNoise(t, 1f) - 0.5f) * s, (Mathf.PerlinNoise(2f, t) - 0.5f) * s, (Mathf.PerlinNoise(t, 3f) - 0.5f) * s * 0.6f);
+    }
     float shoulderCur;
     float fpYaw, fpPitch, eye, bobT;
     float isoFov = 24f, isoNear = 0.3f;
@@ -149,7 +162,7 @@ public class IsometricCamera : MonoBehaviour
     void UpdateCursor()
     {
         var kb = Keyboard.current;
-        bool free = !MouseLook || MinimapHUD.BigMapOpen || (kb != null && kb.leftAltKey.isPressed);
+        bool free = !MouseLook || MinimapHUD.BigMapOpen || PauseMenu.IsPaused || Inventory.Open || (kb != null && kb.leftAltKey.isPressed);
         Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = free;
     }
@@ -188,7 +201,7 @@ public class IsometricCamera : MonoBehaviour
         }
         Quaternion rot = Quaternion.Euler(fpPitch, fpYaw, 0f);
         Vector3 pos = target.position + Vector3.up * (eye + bob) + rot * new Vector3(sway, 0, 0.12f);
-        transform.SetPositionAndRotation(pos, rot);
+        transform.SetPositionAndRotation(pos, rot * ShakeRot());
 
         RenderSettings.fogStartDistance = 12f;
         RenderSettings.fogEndDistance = 12f + GameManager.FogDepth * 0.8f;
@@ -221,7 +234,7 @@ public class IsometricCamera : MonoBehaviour
             && !hit.transform.IsChildOf(target))
             want = Mathf.Max(0.4f, hit.distance - 0.6f);
         shoulderCur = Mathf.Lerp(shoulderCur, want, (want < shoulderCur ? 20f : 5f) * Time.deltaTime);
-        transform.SetPositionAndRotation(pivot + back * shoulderCur, rot);
+        transform.SetPositionAndRotation(pivot + back * shoulderCur, rot * ShakeRot());
 
         RenderSettings.fogStartDistance = 14f;
         RenderSettings.fogEndDistance = 14f + GameManager.FogDepth * 0.85f;
