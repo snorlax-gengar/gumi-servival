@@ -13,7 +13,8 @@ using UnityEngine;
 public static class MixamoLib
 {
     public const string Root = "Mixamo/";
-    static readonly string[] AnimFiles = { "Idle", "Walk", "Run", "CrouchWalk", "AttackMelee", "AttackBat", "Dying", "MutantPunch", "HitReaction" };
+    static readonly string[] AnimFiles = { "Idle", "Walk", "Run", "CrouchWalk", "AttackMelee", "AttackBat", "Dying", "MutantPunch", "HitReaction",
+                                           "Jump", "Fall", "Vault", "Climb" };
     static AnimationClip[] cache;
 
     public static bool HasModel(string name) => AssetLib.Has(Root + name);

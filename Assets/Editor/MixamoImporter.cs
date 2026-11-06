@@ -10,7 +10,7 @@ using UnityEditor;
 public class MixamoImporter : AssetPostprocessor
 {
     const string Folder = "/Resources/Mixamo/";
-    static readonly string[] Loops = { "Idle", "Walk", "Run", "CrouchWalk" };
+    static readonly string[] Loops = { "Idle", "Walk", "Run", "CrouchWalk", "Fall" };
 
     static bool IsMixamo(string p) => p.Replace('\\', '/').Contains(Folder);
 

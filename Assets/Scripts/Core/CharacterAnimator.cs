@@ -12,8 +12,8 @@ using UnityEngine.Playables;
 /// </summary>
 public class CharacterAnimator : MonoBehaviour
 {
-    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5 }
-    const int SlotCount = 6;
+    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5, Jump = 6, Fall = 7, Vault = 8, Climb = 9 }
+    const int SlotCount = 10;
 
     public float walkReference = 1.6f;   // 이 속도(m/s)에서 걷기 동작이 완전히 섞인다
     public float runReference = 4.5f;    // 이 속도에서 달리기 동작이 완전히 섞인다
@@ -120,6 +120,28 @@ public class CharacterAnimator : MonoBehaviour
         plays[(int)Slot.Attack].SetTime(attackFrom * len);
     }
 
+    // ---------------- 점프·낙하·넘기·기어오르기 ----------------
+    Slot actionSlot;
+    float actionT = -1f, actionLen = 1f, actionSpeed = 1f;
+    bool airborne;
+
+    /// <summary>한 번 재생하는 동작 (넘기·기어오르기·점프 시작). duration 초에 맞춰 from~to 구간을 재생.</summary>
+    public bool PlayAction(Slot slot, float duration, float from = 0f, float to = 1f)
+    {
+        if (!IsReady || dead || clips[(int)slot] == null) return false;
+        float len = clips[(int)slot].length;
+        float span = Mathf.Max(0.05f, to - from) * len;
+        actionSlot = slot;
+        actionSpeed = span / Mathf.Max(0.05f, duration);
+        actionLen = duration;
+        actionT = 0f;
+        plays[(int)slot].SetTime(from * len);
+        return true;
+    }
+
+    /// <summary>공중에 떠 있는 동안 낙하 동작 (Fall 클립)</summary>
+    public void SetAirborne(bool a) { airborne = a; }
+
     public void PlayDeath()
     {
         if (!IsReady || dead) return;
@@ -170,6 +192,25 @@ public class CharacterAnimator : MonoBehaviour
                 SetSpeed(Slot.Crouch, Mathf.Clamp(speed / Mathf.Max(0.1f, crouchClipSpeed), 0f, 1.8f));
             }
 
+            // 공중: 낙하 동작
+            if (airborne && clips[(int)Slot.Fall] != null && actionT < 0f)
+            {
+                for (int i = 0; i < SlotCount; i++) weights[i] = 0f;
+                weights[(int)Slot.Fall] = 1f;
+            }
+
+            // 한 번 재생 동작 (넘기·기어오르기·점프)
+            if (actionT >= 0f)
+            {
+                actionT += dt;
+                float t = actionT / actionLen;
+                float a = Mathf.Clamp01(Mathf.Min(t / 0.08f, (1f - t) / 0.12f));
+                for (int i = 0; i < SlotCount; i++) weights[i] *= (1f - a);
+                weights[(int)actionSlot] = a;
+                SetSpeed(actionSlot, actionSpeed);
+                if (t >= 1f) actionT = -1f;
+            }
+
             // 공격: 들어올 때와 끝날 때 살짝 섞는다
             if (attackT >= 0f)
             {
@@ -188,7 +229,7 @@ public class CharacterAnimator : MonoBehaviour
             if (clips[i] == null) continue;
             mixer.SetInputWeight(i, weights[i]);
             // 이동 클립은 직접 반복
-            if (i <= (int)Slot.Run || i == (int)Slot.Crouch)
+            if (i <= (int)Slot.Run || i == (int)Slot.Crouch || i == (int)Slot.Fall)
             {
                 double len = clips[i].length;
                 double tm = plays[i].GetTime();

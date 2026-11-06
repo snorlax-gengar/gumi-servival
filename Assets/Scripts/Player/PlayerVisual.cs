@@ -97,11 +97,16 @@ public class PlayerVisual : MonoBehaviour
                 { CharacterAnimator.Slot.Crouch, new[] { "crouch" } },
                 { CharacterAnimator.Slot.Attack, new[] { "attackmelee", "attackbat", "mutantpunch" } },
                 { CharacterAnimator.Slot.Death, new[] { "dying" } },
+                { CharacterAnimator.Slot.Jump, new[] { "jump" } },
+                { CharacterAnimator.Slot.Fall, new[] { "fall" } },
+                { CharacterAnimator.Slot.Vault, new[] { "vault" } },
+                { CharacterAnimator.Slot.Climb, new[] { "climb" } },
             },
             null);
         if (!ok) { Destroy(t.gameObject); return false; }
         model = t;
         mixamo = true;
+        if (ctrl != null) ctrl.OnTraverse += OnTraverse;
         // 발을 땅에 붙이기 (애니메이션 뒤 발 높이를 재서 모델 높이 보정)
         var g = animator.gameObject.AddComponent<FootGrounder>();
         g.animator = animator;
@@ -137,6 +142,20 @@ public class PlayerVisual : MonoBehaviour
         Debug.Log($"[Gumi] Mixamo 플레이어 준비 (손: {(hand ? hand.name : "없음")})");
         return true;
     }
+
+    // 넘기·기어오르기·점프 동작 (Mixamo 파일이 있을 때)
+    void OnTraverse(int kind, float duration)
+    {
+        if (anim == null) return;
+        switch (kind)
+        {
+            case 0: if (!anim.PlayAction(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.85f)) anim.PlayAction(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.8f); break;
+            case 1: anim.PlayAction(CharacterAnimator.Slot.Climb, duration, 0.05f, 0.95f); break;
+            case 2: anim.PlayAction(CharacterAnimator.Slot.Jump, 0.45f, 0.2f, 0.55f); break;
+        }
+    }
+
+    float airTime;
 
     /// <summary>
     /// Remy FBX 안에 묻힌 텍스처는 Unity가 못 찾아서 흰 마네킹처럼 보였다.
@@ -271,6 +290,10 @@ public class PlayerVisual : MonoBehaviour
 
         // 웅크리기: 동작을 느리게 하고 몸을 낮춘다 (전용 동작이 없어서 자세로 표현)
         crouch = Mathf.MoveTowards(crouch, ctrl != null && ctrl.IsCrouching ? 1f : 0f, 5f * Time.deltaTime);
+        // 0.25초 넘게 공중이면 낙하 동작
+        airTime = ctrl != null && ctrl.IsAirborne ? airTime + Time.deltaTime : 0f;
+        anim.SetAirborne(airTime > 0.25f);
+
         if (anim.HasClip(CharacterAnimator.Slot.Crouch))
         {
             anim.SetCrouch(crouch);

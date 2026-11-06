@@ -18,6 +18,10 @@ Mixamo(https://www.mixamo.com, 어도비 무료 계정) 파일은 약관상 원�
 | Dying.fbx | Dying |
 | MutantPunch.fbx | Mutant Punch |
 | HitReaction.fbx | Hit Reaction (선택) |
+| Jump.fbx | Jump (선택, In Place) |
+| Fall.fbx | Falling Idle (선택) |
+| Vault.fbx | Jump Over 또는 Vault (선택, In Place) |
+| Climb.fbx | Climbing 또는 Climbing Up Wall (선택, In Place) |
 
 ## 텍스처 꺼내기 (필수)
 Remy처럼 텍스처가 FBX 안에 묻힌 캐릭터는 Unity가 텍스처를 못 찾아 흰 마네킹처럼 보인다. 넣은 뒤 한 번 실행:

@@ -46,7 +46,7 @@ public class PlayerController : MonoBehaviour
     public float jumpSpeed = 4.6f;          // 약 1.1m
     public float jumpStamina = 8f, vaultStamina = 6f;
     public float vaultMaxHeight = 1.35f;    // 이보다 낮은 장애물은 넘어간다 (차, 방호벽, 화분, 낮은 담)
-    public float vaultTime = 0.45f;
+    public float vaultTime = 0.6f;
     bool vaulting;
     bool crouchToggle, wasGrounded = true;
     float stepTimer;
@@ -61,45 +61,95 @@ public class PlayerController : MonoBehaviour
     /// Space: 앞에 허리 높이 장애물이 있으면 넘어가고, 없으면 점프.
     /// 넘기 판정: 무릎 높이에서 앞이 막혔고, 머리 높이는 뚫려 있고, 장애물 너머에 설 자리가 있으면.
     /// </summary>
+    [Tooltip("이 높이까지는 손을 짚고 기어오른다 (차 지붕, 담, 컨테이너, 낮은 지붕)")]
+    public float climbMaxHeight = 2.6f;
+    public float climbStamina = 14f;
+    /// <summary>넘기·오르기 시작 (종류 0 넘기, 1 기어오르기, 2 점프, 길이 초). 애니메이션이 듣는다.</summary>
+    public event System.Action<int, float> OnTraverse;
+    int vaultKind;
+    float vaultDuration;
+
+    /// <summary>
+    /// Space 판정:
+    ///  · 허리 높이(0.35~1.35m)이고 너머에 설 자리가 있으면 → 훌쩍 넘기
+    ///  · 1.35~2.6m 이고 위에 설 자리가 있으면 → 손을 짚고 기어올라 그 위에 선다
+    ///  · 아니면 점프
+    /// </summary>
     bool TryVault()
     {
         Vector3 fwd = transform.forward;
-        int mask = ~(1 << 31);
+        int mask = ~((1 << 31) | (1 << 30));
         Vector3 o = transform.position;
-        if (!Physics.Raycast(o + Vector3.up * 0.45f, fwd, out RaycastHit low, 1.2f, mask, QueryTriggerInteraction.Ignore)) return false;
-        if (Physics.Raycast(o + Vector3.up * (vaultMaxHeight + 0.35f), fwd, low.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) return false;  // 너무 높음
+        if (!Physics.Raycast(o + Vector3.up * 0.45f, fwd, out RaycastHit low, 1.2f, mask, QueryTriggerInteraction.Ignore)
+            && !Physics.Raycast(o + Vector3.up * 1.2f, fwd, out low, 1.0f, mask, QueryTriggerInteraction.Ignore)) return false;
+        if (Physics.Raycast(o + Vector3.up * (climbMaxHeight + 0.4f), fwd, low.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) return false;  // 너무 높음
         // 장애물 윗면 높이
-        Vector3 over = o + fwd * (low.distance + 0.25f) + Vector3.up * (vaultMaxHeight + 0.3f);
-        if (!Physics.Raycast(over, Vector3.down, out RaycastHit top, vaultMaxHeight + 0.4f, mask, QueryTriggerInteraction.Ignore)) return false;
+        Vector3 over = o + fwd * (low.distance + 0.3f) + Vector3.up * (climbMaxHeight + 0.35f);
+        if (!Physics.Raycast(over, Vector3.down, out RaycastHit top, climbMaxHeight + 0.5f, mask, QueryTriggerInteraction.Ignore)) return false;
         float topY = top.point.y - o.y;
-        if (topY < 0.35f || topY > vaultMaxHeight) return false;
-        // 너머 착지점: 장애물 두께를 몰라서 0.6~2.4m 앞을 차례로 본다
-        for (float ahead = low.distance + 0.7f; ahead <= low.distance + 2.6f; ahead += 0.3f)
+        if (topY < 0.35f || topY > climbMaxHeight) return false;
+        float r = cc.radius * 0.9f;
+
+        if (topY <= vaultMaxHeight)
         {
-            Vector3 land = o + fwd * ahead;
-            if (!Physics.Raycast(land + Vector3.up * (topY + 0.3f), Vector3.down, out RaycastHit g, topY + 1.2f, mask, QueryTriggerInteraction.Ignore)) continue;
-            if (g.point.y - o.y > 0.25f) continue;   // 아직 장애물 위
-            Vector3 p = g.point;
-            if (Physics.CheckCapsule(p + Vector3.up * (cc.radius + 0.05f), p + Vector3.up * (1.7f - cc.radius), cc.radius * 0.9f, mask, QueryTriggerInteraction.Ignore)) continue;
-            vaulting = true;
-            vaultT = 0f;
-            vaultFrom = o;
-            vaultTo = p;
-            vaultPeak = topY + 0.35f;
-            cc.enabled = false;
-            if (stats != null) stats.stamina -= vaultStamina;
-            NoiseSystem.Emit(o, walkNoise);
+            // 너머 착지점: 장애물 두께를 몰라서 0.7~2.6m 앞을 차례로 본다
+            for (float ahead = low.distance + 0.7f; ahead <= low.distance + 2.6f; ahead += 0.3f)
+            {
+                Vector3 land = o + fwd * ahead;
+                if (!Physics.Raycast(land + Vector3.up * (topY + 0.3f), Vector3.down, out RaycastHit g, topY + 1.2f, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (g.point.y - o.y > 0.25f) continue;   // 아직 장애물 위
+                Vector3 p = g.point;
+                if (Physics.CheckCapsule(p + Vector3.up * (cc.radius + 0.05f), p + Vector3.up * (1.7f - cc.radius), r, mask, QueryTriggerInteraction.Ignore)) continue;
+                StartTraverse(0, o, p, topY + 0.35f, vaultTime, vaultStamina);
+                return true;
+            }
+        }
+        // 위에 올라설 자리 (넘을 수 없는 두꺼운 것, 또는 높은 것)
+        Vector3 stand = top.point + fwd * 0.35f;
+        if (Physics.Raycast(stand + Vector3.up * 0.6f, Vector3.down, out RaycastHit st, 1.0f, mask, QueryTriggerInteraction.Ignore)
+            && Mathf.Abs(st.point.y - top.point.y) < 0.3f
+            && !Physics.CheckCapsule(st.point + Vector3.up * (cc.radius + 0.08f), st.point + Vector3.up * (1.7f - cc.radius), r, mask, QueryTriggerInteraction.Ignore))
+        {
+            if (stats != null && stats.stamina < climbStamina) { HUD.ShowMessage("기어오르기엔 너무 지쳤다", 1.2f); return true; }
+            float dur = 0.55f + topY * 0.28f;
+            StartTraverse(1, o, st.point, 0f, dur, climbStamina);
             return true;
         }
         return false;
     }
 
+    void StartTraverse(int kind, Vector3 from, Vector3 to, float peak, float duration, float stamina)
+    {
+        vaulting = true;
+        vaultKind = kind;
+        vaultT = 0f;
+        vaultFrom = from;
+        vaultTo = to;
+        vaultPeak = peak;
+        vaultDuration = duration;
+        cc.enabled = false;
+        if (stats != null) stats.stamina -= stamina;
+        NoiseSystem.Emit(from, walkNoise);
+        OnTraverse?.Invoke(kind, duration);
+    }
+
     void UpdateVault()
     {
-        vaultT += Time.deltaTime / vaultTime;
+        vaultT += Time.deltaTime / Mathf.Max(0.05f, vaultDuration);
         float t = Mathf.Clamp01(vaultT);
-        Vector3 p = Vector3.Lerp(vaultFrom, vaultTo, Mathf.SmoothStep(0, 1, t));
-        p.y = Mathf.Lerp(vaultFrom.y, vaultTo.y, t) + Mathf.Sin(t * Mathf.PI) * vaultPeak;
+        Vector3 p;
+        if (vaultKind == 1)
+        {
+            // 기어오르기: 먼저 손을 짚고 몸을 끌어올리고(65%), 그다음 무릎을 올려 앞으로(35%)
+            float up = Mathf.SmoothStep(0, 1, Mathf.Clamp01(t / 0.65f));
+            float fw = Mathf.SmoothStep(0, 1, Mathf.Clamp01((t - 0.45f) / 0.55f));
+            p = new Vector3(Mathf.Lerp(vaultFrom.x, vaultTo.x, fw), Mathf.Lerp(vaultFrom.y, vaultTo.y + 0.05f, up), Mathf.Lerp(vaultFrom.z, vaultTo.z, fw));
+        }
+        else
+        {
+            p = Vector3.Lerp(vaultFrom, vaultTo, Mathf.SmoothStep(0, 1, t));
+            p.y = Mathf.Lerp(vaultFrom.y, vaultTo.y, t) + Mathf.Sin(t * Mathf.PI) * vaultPeak;
+        }
         transform.position = p;
         if (t >= 1f)
         {
@@ -126,6 +176,7 @@ public class PlayerController : MonoBehaviour
             {
                 verticalVel = jumpSpeed;
                 if (stats != null) stats.stamina -= jumpStamina;
+                OnTraverse?.Invoke(2, 0.5f);
                 Sfx.Play("jump", transform.position, 0.5f, 0.1f, 0f);
             }
             else if (vaulting) Sfx.Play("jump", transform.position, 0.7f, 0.1f, 0f);
