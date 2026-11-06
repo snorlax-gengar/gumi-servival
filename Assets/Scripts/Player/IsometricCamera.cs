@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// 카메라: 1인칭(기본) ↔ 3인칭 쿼터뷰, V로 전환.
+/// 카메라: 1인칭(기본) ↔ 3인칭 어깨 시점, V로 전환. (예전 쿼터뷰 코드도 남아 있음)
 /// 1인칭: 마우스로 둘러보기(커서 잠김, Alt를 누르면 커서), 몸은 보는 방향을 향함, 걸을 때 머리 흔들림.
 /// 3인칭 쿼터뷰:
 /// - 마우스 우클릭 드래그: 자유 회전(좌우) + 기울기(상하)
@@ -48,6 +48,16 @@ public class IsometricCamera : MonoBehaviour
     public float mouseSensitivity = 0.11f;
     public float eyeHeight = 1.62f, crouchEyeHeight = 1.05f;
     public static bool FirstPerson { get; private set; }
+
+    [Header("3인칭 어깨 시점")]
+    public float shoulderDistance = 2.8f;
+    public float shoulderRight = 0.6f, shoulderHeight = 1.55f;
+    public float shoulderFov = 62f;
+    /// <summary>어깨 시점 (V로 1인칭과 전환)</summary>
+    public static bool Shoulder { get; private set; }
+    /// <summary>마우스로 둘러보는 시점 (1인칭 또는 어깨). 몸이 보는 방향을 향한다.</summary>
+    public static bool MouseLook => FirstPerson || Shoulder;
+    float shoulderCur;
     float fpYaw, fpPitch, eye, bobT;
     float isoFov = 24f, isoNear = 0.3f;
     PlayerVisual pvis;
@@ -85,6 +95,7 @@ public class IsometricCamera : MonoBehaviour
         var c0 = GetComponent<Camera>();
         if (c0 != null) { isoFov = c0.fieldOfView; isoNear = c0.nearClipPlane; }
         FirstPerson = false;
+        Shoulder = false;
     }
 
     void Start()
@@ -93,17 +104,34 @@ public class IsometricCamera : MonoBehaviour
         SetFirstPerson(startFirstPerson);
     }
 
-    void OnDisable() { FirstPerson = false; Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
+    void OnDisable() { FirstPerson = false; Shoulder = false; Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
+
+    /// <summary>어깨 시점으로 (몸이 보이는 3인칭, 마우스로 둘러봄)</summary>
+    public void SetShoulder()
+    {
+        bool wasMouseLook = MouseLook;
+        FirstPerson = false;
+        Shoulder = true;
+        RestoreAllGhosts();
+        if (!wasMouseLook) { fpYaw = target != null ? target.eulerAngles.y : currentYaw; fpPitch = 10f; }
+        shoulderCur = shoulderDistance;
+        var cam = GetComponent<Camera>();
+        if (cam != null) { cam.fieldOfView = shoulderFov; cam.nearClipPlane = 0.1f; }
+        if (pvis == null && target != null) pvis = target.GetComponent<PlayerVisual>();
+        if (pvis != null) pvis.SetFirstPerson(false);
+        UpdateCursor();
+    }
 
     public void SetFirstPerson(bool fp)
     {
+        bool wasMouseLook = MouseLook;
         FirstPerson = fp;
+        Shoulder = false;
         var cam = GetComponent<Camera>();
         if (fp)
         {
             RestoreAllGhosts();
-            fpYaw = target != null ? target.eulerAngles.y : currentYaw;
-            fpPitch = 8f;
+            if (!wasMouseLook) { fpYaw = target != null ? target.eulerAngles.y : currentYaw; fpPitch = 8f; }
             eye = eyeHeight;
             if (cam != null) { cam.fieldOfView = fpFov; cam.nearClipPlane = 0.05f; }
         }
@@ -121,7 +149,7 @@ public class IsometricCamera : MonoBehaviour
     void UpdateCursor()
     {
         var kb = Keyboard.current;
-        bool free = !FirstPerson || MinimapHUD.BigMapOpen || (kb != null && kb.leftAltKey.isPressed);
+        bool free = !MouseLook || MinimapHUD.BigMapOpen || (kb != null && kb.leftAltKey.isPressed);
         Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = free;
     }
@@ -168,9 +196,42 @@ public class IsometricCamera : MonoBehaviour
         if (urp != null && Mathf.Abs(urp.shadowDistance - 70f) > 5f) urp.shadowDistance = 70f;
     }
 
+    /// <summary>어깨 시점: 오른쪽 어깨 너머. 벽에 막히면 카메라를 당긴다.</summary>
+    void ShoulderUpdate()
+    {
+        UpdateCursor();
+        var mouse = Mouse.current;
+        if (mouse != null && Cursor.lockState == CursorLockMode.Locked)
+        {
+            Vector2 d = mouse.delta.ReadValue() * mouseSensitivity;
+            fpYaw += d.x;
+            fpPitch = Mathf.Clamp(fpPitch - d.y, -60f, 70f);
+        }
+        target.rotation = Quaternion.Euler(0f, fpYaw, 0f);
+        currentYaw = fpYaw;
+
+        bool crouch = pctrl != null && pctrl.IsCrouching;
+        Quaternion rot = Quaternion.Euler(fpPitch, fpYaw, 0f);
+        Vector3 pivot = target.position + Vector3.up * (crouch ? shoulderHeight - 0.45f : shoulderHeight) + (rot * Vector3.right) * shoulderRight;
+        Vector3 back = rot * Vector3.back;
+        float want = shoulderDistance;
+        int mask = ~(1 << AndroidLayer);
+        if (Physics.SphereCast(target.position + Vector3.up * 1.4f, 0.2f, (pivot + back * want - (target.position + Vector3.up * 1.4f)).normalized,
+                out RaycastHit hit, Vector3.Distance(target.position + Vector3.up * 1.4f, pivot + back * want), mask, QueryTriggerInteraction.Ignore)
+            && !hit.transform.IsChildOf(target))
+            want = Mathf.Max(0.4f, hit.distance - 0.6f);
+        shoulderCur = Mathf.Lerp(shoulderCur, want, (want < shoulderCur ? 20f : 5f) * Time.deltaTime);
+        transform.SetPositionAndRotation(pivot + back * shoulderCur, rot);
+
+        RenderSettings.fogStartDistance = 14f;
+        RenderSettings.fogEndDistance = 14f + GameManager.FogDepth * 0.85f;
+        var urp = GraphicsSettings.currentRenderPipeline as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+        if (urp != null && Mathf.Abs(urp.shadowDistance - 70f) > 5f) urp.shadowDistance = 70f;
+    }
+
     void OnGUI()
     {
-        if (!FirstPerson || MinimapHUD.BigMapOpen) return;
+        if (!MouseLook || MinimapHUD.BigMapOpen) return;
         // 화면 가운데 조준점
         float s = 4f;
         GUI.color = new Color(1f, 1f, 1f, 0.75f);
@@ -191,8 +252,13 @@ public class IsometricCamera : MonoBehaviour
     {
         if (target == null) return;
         var kbv = Keyboard.current;
-        if (kbv != null && kbv.vKey.wasPressedThisFrame) SetFirstPerson(!FirstPerson);
+        // V: 1인칭 ↔ 어깨 시점
+        if (kbv != null && kbv.vKey.wasPressedThisFrame)
+        {
+            if (FirstPerson) SetShoulder(); else SetFirstPerson(true);
+        }
         if (FirstPerson) { FirstPersonUpdate(); return; }
+        if (Shoulder) { ShoulderUpdate(); return; }
         UpdateCursor();
         HandleInput();
 

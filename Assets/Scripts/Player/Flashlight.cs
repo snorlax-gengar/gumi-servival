@@ -79,6 +79,8 @@ public class Flashlight : MonoBehaviour
         var cam = Camera.main;
         if (IsometricCamera.FirstPerson && cam != null)
             spot.transform.SetPositionAndRotation(cam.transform.position + cam.transform.right * 0.18f - cam.transform.up * 0.12f, cam.transform.rotation);
+        else if (IsometricCamera.Shoulder && cam != null)
+            spot.transform.SetPositionAndRotation(transform.position + Vector3.up * 1.35f + transform.forward * 0.35f + transform.right * 0.15f, cam.transform.rotation);
         else
         {
             spot.transform.localPosition = new Vector3(0.15f, 1.35f, 0.25f);

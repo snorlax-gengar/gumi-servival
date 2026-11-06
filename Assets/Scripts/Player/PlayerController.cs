@@ -42,11 +42,90 @@ public class PlayerController : MonoBehaviour
         if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
     }
 
+    [Header("점프 · 넘기")]
+    public float jumpSpeed = 4.6f;          // 약 1.1m
+    public float jumpStamina = 8f, vaultStamina = 6f;
+    public float vaultMaxHeight = 1.35f;    // 이보다 낮은 장애물은 넘어간다 (차, 방호벽, 화분, 낮은 담)
+    public float vaultTime = 0.45f;
+    bool vaulting;
+    float vaultT;
+    Vector3 vaultFrom, vaultTo;
+    float vaultPeak;
+    /// <summary>넘는 중 (애니메이션·소리용)</summary>
+    public bool IsVaulting => vaulting;
+    public bool IsAirborne => !cc.isGrounded && !vaulting;
+
+    /// <summary>
+    /// Space: 앞에 허리 높이 장애물이 있으면 넘어가고, 없으면 점프.
+    /// 넘기 판정: 무릎 높이에서 앞이 막혔고, 머리 높이는 뚫려 있고, 장애물 너머에 설 자리가 있으면.
+    /// </summary>
+    bool TryVault()
+    {
+        Vector3 fwd = transform.forward;
+        int mask = ~(1 << 31);
+        Vector3 o = transform.position;
+        if (!Physics.Raycast(o + Vector3.up * 0.45f, fwd, out RaycastHit low, 1.2f, mask, QueryTriggerInteraction.Ignore)) return false;
+        if (Physics.Raycast(o + Vector3.up * (vaultMaxHeight + 0.35f), fwd, low.distance + 0.9f, mask, QueryTriggerInteraction.Ignore)) return false;  // 너무 높음
+        // 장애물 윗면 높이
+        Vector3 over = o + fwd * (low.distance + 0.25f) + Vector3.up * (vaultMaxHeight + 0.3f);
+        if (!Physics.Raycast(over, Vector3.down, out RaycastHit top, vaultMaxHeight + 0.4f, mask, QueryTriggerInteraction.Ignore)) return false;
+        float topY = top.point.y - o.y;
+        if (topY < 0.35f || topY > vaultMaxHeight) return false;
+        // 너머 착지점: 장애물 두께를 몰라서 0.6~2.4m 앞을 차례로 본다
+        for (float ahead = low.distance + 0.7f; ahead <= low.distance + 2.6f; ahead += 0.3f)
+        {
+            Vector3 land = o + fwd * ahead;
+            if (!Physics.Raycast(land + Vector3.up * (topY + 0.3f), Vector3.down, out RaycastHit g, topY + 1.2f, mask, QueryTriggerInteraction.Ignore)) continue;
+            if (g.point.y - o.y > 0.25f) continue;   // 아직 장애물 위
+            Vector3 p = g.point;
+            if (Physics.CheckCapsule(p + Vector3.up * (cc.radius + 0.05f), p + Vector3.up * (1.7f - cc.radius), cc.radius * 0.9f, mask, QueryTriggerInteraction.Ignore)) continue;
+            vaulting = true;
+            vaultT = 0f;
+            vaultFrom = o;
+            vaultTo = p;
+            vaultPeak = topY + 0.35f;
+            cc.enabled = false;
+            if (stats != null) stats.stamina -= vaultStamina;
+            NoiseSystem.Emit(o, walkNoise);
+            return true;
+        }
+        return false;
+    }
+
+    void UpdateVault()
+    {
+        vaultT += Time.deltaTime / vaultTime;
+        float t = Mathf.Clamp01(vaultT);
+        Vector3 p = Vector3.Lerp(vaultFrom, vaultTo, Mathf.SmoothStep(0, 1, t));
+        p.y = Mathf.Lerp(vaultFrom.y, vaultTo.y, t) + Mathf.Sin(t * Mathf.PI) * vaultPeak;
+        transform.position = p;
+        if (t >= 1f)
+        {
+            vaulting = false;
+            cc.enabled = true;
+            verticalVel = -2f;
+        }
+    }
+
     void Update()
     {
         if (stats != null && stats.IsDead) return;
         var kb = Keyboard.current;
         if (kb == null) return;
+        if (vaulting) { UpdateVault(); return; }
+
+        // 점프 / 넘기 (전체 지도가 열려 있으면 Space는 지도용)
+        if (kb.spaceKey.wasPressedThisFrame && !MinimapHUD.BigMapOpen && cc.isGrounded && attackLock <= 0f
+            && (ScenarioManager.Instance == null || !ScenarioManager.Instance.Won || Time.timeScale > 0f))
+        {
+            bool tired = stats != null && stats.stamina < jumpStamina;
+            if (!TryVault() && !tired)
+            {
+                verticalVel = jumpSpeed;
+                if (stats != null) stats.stamina -= jumpStamina;
+            }
+            if (vaulting) return;
+        }
 
         // 입력
         Vector2 input = Vector2.zero;
@@ -95,7 +174,7 @@ public class PlayerController : MonoBehaviour
         cc.height = Mathf.Lerp(cc.height, IsCrouching ? 1.1f : 1.8f, 10f * Time.deltaTime);
         cc.center = new Vector3(0, cc.height / 2f, 0);
 
-        if (!attacking && !IsometricCamera.FirstPerson) FaceMoveDirection(move);   // 1인칭에서는 카메라가 몸 방향을 정한다
+        if (!attacking && !IsometricCamera.MouseLook) FaceMoveDirection(move);   // 1인칭에서는 카메라가 몸 방향을 정한다
         EmitFootstepNoise();
     }
 
@@ -116,7 +195,7 @@ public class PlayerController : MonoBehaviour
     /// <summary>해당 지점을 즉시 바라본다 (마우스 조준 공격용)</summary>
     public void FaceTowards(Vector3 worldPoint)
     {
-        if (IsometricCamera.FirstPerson) return;
+        if (IsometricCamera.MouseLook) return;
         Vector3 dir = worldPoint - transform.position; dir.y = 0;
         if (dir.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
     }
