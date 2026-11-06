@@ -25,6 +25,8 @@ public class CharacterAnimator : MonoBehaviour
     [Range(0, 1)] public float attackFrom = 0f, attackTo = 1f;
     [Tooltip("이동 속도 변화를 부드럽게 (클수록 빠르게 따라감)")]
     public float speedSmoothing = 10f;
+    [Tooltip("화면에 안 보여도 계속 움직인다 (1인칭에서 몸을 그림자만 남겨도 굳지 않게)")]
+    public bool alwaysAnimate = false;
 
     public bool IsReady { get; private set; }
     public bool HasClip(Slot s) => clips[(int)s] != null;
@@ -52,7 +54,7 @@ public class CharacterAnimator : MonoBehaviour
         if (clips[(int)Slot.Idle] == null && clips[(int)Slot.Walk] == null) return false;
 
         animator.applyRootMotion = false;
-        animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
+        animator.cullingMode = alwaysAnimate ? AnimatorCullingMode.AlwaysAnimate : AnimatorCullingMode.CullUpdateTransforms;
 
         graph = PlayableGraph.Create(name + "_Anim");
         graph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);

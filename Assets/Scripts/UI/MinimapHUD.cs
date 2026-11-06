@@ -69,9 +69,24 @@ public class MinimapHUD : MonoBehaviour
     }
 
     // 미니맵은 위에서 150m 떨어져 찍으니 안개를 끄고 그린다
+    float savedFogStart = -1f, savedFogEnd;
+
     void BeforeCamera(ScriptableRenderContext ctx, Camera cam)
     {
-        RenderSettings.fog = cam != mapCam && GameManager.FogOn;
+        // URP는 안개 켜고 끄기를 카메라마다 바꾸지 못해서, 지도 카메라 때만 안개 거리를 아주 멀리 민다
+        if (cam == mapCam)
+        {
+            if (savedFogStart < 0f) { savedFogStart = RenderSettings.fogStartDistance; savedFogEnd = RenderSettings.fogEndDistance; }
+            RenderSettings.fogStartDistance = 5000f;
+            RenderSettings.fogEndDistance = 6000f;
+        }
+        else if (savedFogStart >= 0f)
+        {
+            RenderSettings.fogStartDistance = savedFogStart;
+            RenderSettings.fogEndDistance = savedFogEnd;
+            savedFogStart = -1f;
+        }
+        RenderSettings.fog = GameManager.FogOn;
     }
 
     void OnDestroy()

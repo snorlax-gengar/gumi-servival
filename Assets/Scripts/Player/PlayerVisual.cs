@@ -84,6 +84,7 @@ public class PlayerVisual : MonoBehaviour
         anim.walkClipSpeed = 1.6f;   // Mixamo Walking 보폭
         anim.runClipSpeed = 4.4f;    // Mixamo Running 보폭
         anim.crouchClipSpeed = 1.1f;
+        anim.alwaysAnimate = true;   // 1인칭에서 몸이 '안 보이는' 것으로 처리돼 굳어 버리던 문제
         anim.attackDuration = 0.7f;
         anim.attackFrom = 0.18f;   // 준비 동작 앞부분과 마무리 뒷부분을 잘라 빠르게 휘두른다
         anim.attackTo = 0.68f;
