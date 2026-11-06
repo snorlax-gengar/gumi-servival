@@ -84,6 +84,17 @@ public class HUD : MonoBehaviour
             y += 24;
         }
 
+        // --- 자세 표시: 웅크리면 화면 아래 가운데에 (C로 켜 둔 건지 알 수 있게) ---
+        var pc = stats.GetComponent<PlayerController>();
+        if (pc != null && pc.IsCrouching)
+        {
+            GUI.color = new Color(0, 0, 0, 0.5f);
+            GUI.DrawTexture(new Rect(UIScale.W / 2 - 90, UIScale.H - 70, 180, 26), white);
+            GUI.color = Kit.Hazard;
+            GUI.Label(new Rect(UIScale.W / 2 - 90, UIScale.H - 70, 180, 26), "웅크림 — C로 일어서기", new GUIStyle(label) { alignment = TextAnchor.MiddleCenter });
+            GUI.color = Color.white;
+        }
+
         // --- 시계 ---
         if (GameManager.Instance != null)
             GUI.Label(new Rect(UIScale.W - 240, 16, 220, 30), GameManager.Instance.ClockText(), clockStyle);

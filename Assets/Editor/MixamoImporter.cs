@@ -14,7 +14,7 @@ public class MixamoImporter : AssetPostprocessor
 
     static bool IsMixamo(string p) => p.Replace('\\', '/').Contains(Folder);
 
-    public override uint GetVersion() => 3;
+    public override uint GetVersion() => 4;
 
     // 캐릭터에서 뽑아낸 텍스처: 노멀맵은 노멀맵으로
     void OnPreprocessTexture()
@@ -49,7 +49,9 @@ public class MixamoImporter : AssetPostprocessor
             clips[i].lockRootRotation = true;
             clips[i].keepOriginalOrientation = true;
             clips[i].lockRootHeightY = true;
-            clips[i].keepOriginalPositionY = true;
+            // 높이는 '발' 기준: 다른 체형(Y Bot 동작 → Remy)에 입혀도 발이 땅에 붙는다 (원본 기준이면 공중에 뜸)
+            clips[i].keepOriginalPositionY = false;
+            clips[i].heightFromFeet = true;
             clips[i].lockRootPositionXZ = false;
         }
         mi.clipAnimations = clips;
