@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -19,9 +20,36 @@ public class ParkourTest : MonoBehaviour
         var kb = Keyboard.current;
         if (kb != null && kb.f10Key.wasPressedThisFrame && !running) StartCoroutine(Run());
         if (kb != null && kb.f11Key.wasPressedThisFrame && !running) StartCoroutine(Walk());
+        // F8: 디자인 둘러보기 — 편의점·상가 건물 앞으로 차례로 옮겨 간다 (가까운 곳부터)
+        if (kb != null && kb.f8Key.wasPressedThisFrame && !running) NextShowcase();
         // F12: 시간 1시간 건너뛰기 (밤·순찰대·아침 장면 확인용)
         if (kb != null && kb.f12Key.wasPressedThisFrame && GameManager.Instance != null) { GameManager.Instance.AdvanceHours(1f); HUD.ShowMessage("(개발) 1시간 건너뜀 → " + GameManager.Instance.ClockText(), 1.5f); }
 #endif
+    }
+
+    int showIdx = -1;
+    readonly List<CityGenerator.Showcase> showOrder = new List<CityGenerator.Showcase>();
+
+    void NextShowcase()
+    {
+        var ctrl = FindAnyObjectByType<PlayerController>();
+        if (ctrl == null || CityGenerator.Showcases.Count == 0) { HUD.ShowMessage("(개발) 둘러볼 건물이 없다", 1.5f); return; }
+        if (showOrder.Count == 0)
+        {
+            showOrder.AddRange(CityGenerator.Showcases);
+            Vector3 p0 = ctrl.transform.position;
+            showOrder.Sort((a, b) => (a.pos - p0).sqrMagnitude.CompareTo((b.pos - p0).sqrMagnitude));
+        }
+        showIdx = (showIdx + 1) % showOrder.Count;
+        var s = showOrder[showIdx];
+        Vector3 stand = s.pos + s.n * 6.5f;
+        // 서 있을 땅 높이
+        if (Physics.Raycast(stand + Vector3.up * 30f, Vector3.down, out RaycastHit hit, 60f, ~((1 << 30) | (1 << 31)), QueryTriggerInteraction.Ignore)) stand.y = hit.point.y;
+        ctrl.Teleport(stand + Vector3.up * 0.05f);
+        ctrl.transform.rotation = Quaternion.LookRotation(-s.n);
+        var cam = FindAnyObjectByType<IsometricCamera>();
+        if (cam != null) cam.SetLook(Mathf.Atan2(-s.n.x, -s.n.z) * Mathf.Rad2Deg, 2f);
+        HUD.ShowMessage($"(개발) 둘러보기 {showIdx + 1}/{showOrder.Count}: {s.label}", 2.5f);
     }
 
     static GameObject Block(Transform parent, Vector3 center, Vector3 size, Color c)

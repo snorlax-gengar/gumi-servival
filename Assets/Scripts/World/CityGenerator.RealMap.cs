@@ -664,6 +664,7 @@ public partial class CityGenerator
 
     void BuildRealBuildings()
     {
+        Showcases.Clear();
         bldRoot = new GameObject("구미_건물").transform;
         bldRoot.SetParent(root, false);
         BuildingRoot = bldRoot;
@@ -1030,9 +1031,12 @@ public partial class CityGenerator
         var mb = new MeshBuilder(2);   // 0 금속 선반, 1 나무 탁자·계산대
         string c0 = ground.Count > 0 ? (ground[0].c ?? "") : "", m0 = ground.Count > 0 ? (ground[0].m ?? "") : "";
         bool food = m0.Contains("음식") || c0.Contains("카페") || c0.Contains("빵");
+        bool cvs = ground.Exists(g => (g.c ?? "").Contains("편의점"));
+        if (cvs) mb = new MeshBuilder(2);
 
+        if (cvs) Signage.ConvenienceInterior(interiorRoot, nm, c, inner, front, fn, hash, Facade.ShopFloor);
         // 벽 따라 선반 (정면 벽 제외)
-        for (int i = 0; i < inner.Count; i++)
+        for (int i = 0; i < inner.Count && !cvs; i++)
         {
             if (i == front) continue;
             Vector2 a = inner[i], e = inner[(i + 1) % inner.Count];
@@ -1051,7 +1055,8 @@ public partial class CityGenerator
         float fyaw = Mathf.Atan2(-fd.y, fd.x) * Mathf.Rad2Deg;
         Vector2 ctr = Poly.Centroid(inner);
         Vector2 back = new Vector2(-fn.x, -fn.z);
-        if (food)
+        if (cvs) { }
+        else if (food)
         {
             for (int gx = -2; gx <= 2; gx++)
                 for (int gz = -2; gz <= 2; gz++)
@@ -1072,7 +1077,7 @@ public partial class CityGenerator
                 mb.Box(0, new Vector3(q.x - c.x, 0.7f, q.y - c.y), new Vector3(len, 1.4f, 0.8f), fyaw);
             }
         }
-        var go = mb.Build(nm + " 안", interiorRoot, origin, new[] { Kit.Mat(Kit.Hex("8A9098")), Kit.Mat(Kit.Hex("7A5C40")) }, true);
+        if (!mb.Empty) mb.Build(nm + " 안", interiorRoot, origin, new[] { Kit.Mat(Kit.Hex("8A9098")), Kit.Mat(Kit.Hex("7A5C40")) }, true);
 
         // 뒤질 곳: 안쪽 깊숙이 (가게마다 하나, 최대 2곳)
         int n = Mathf.Min(2, ground.Count);
@@ -1296,9 +1301,13 @@ public partial class CityGenerator
 
     /// <summary>벽에 붙은 간판 판 + 글씨. center = 판 중앙(로컬, 벽면 위), n = 바깥 법선</summary>
     static void SignPanel(Transform t, string text, Vector3 center, Vector3 n, Vector3 size, Color bg, Color fg)
+        => SignPanel(t, text, center, n, size, Kit.Mat(bg), fg);
+
+    static void SignPanel(Transform t, string text, Vector3 center, Vector3 n, Vector3 size, Material bg, Color fg)
     {
         var rot = Quaternion.LookRotation(n, Vector3.up);
-        Kit.Box(t, center + n * (size.z * 0.5f + 0.02f), size, bg, rot: rot, name: "간판");
+        var g = Kit.Box(t, center + n * (size.z * 0.5f + 0.02f), size, Color.white, rot: rot, name: "간판");
+        g.GetComponent<Renderer>().sharedMaterial = bg;
         // 한글 한 글자 폭 ≈ 글자 높이 → 판 안에 들어가게 (양옆 여백 반 글자씩)
         float hgt = Mathf.Min(size.y * 0.72f, size.x / Mathf.Max(2, text.Length + 1) * 0.92f);
         Kit.Label(t, text, center + n * (size.z + 0.04f), Kit.Facing(n), hgt, fg);
@@ -1316,7 +1325,14 @@ public partial class CityGenerator
             float off = -frontLen * 0.5f + 0.2f + seg * (i + 0.5f);
             Color bg = SignColor(sp, i);
             string name = sp.n.Length > 12 ? sp.n.Substring(0, 12) : sp.n;
-            SignPanel(t, name, mid + along * off + Vector3.up * 2.95f, n, new Vector3(seg - 0.25f, 0.75f, 0.1f), bg, TextOn(bg));
+            if ((sp.c ?? "").Contains("편의점"))
+            {
+                // 편의점: 흰 띠 간판 + 청록·산호 줄 + 24 상자, 가게 앞 파라솔 테이블·냉동고
+                Signage.ConvenienceFront(t, mid + along * off, n, along, seg, sp.n, hash + i);
+                AddShowcase(t.TransformPoint(mid + along * off), t.TransformDirection(n), "편의점 · " + name);
+                continue;
+            }
+            SignPanel(t, name, mid + along * off + Vector3.up * 2.95f, n, new Vector3(seg - 0.25f, 0.75f, 0.1f), Signage.Night(bg, 1.1f), TextOn(bg));
             // 차양: 가게 셋 중 하나 꼴로 간판 아래 기울어진 천막
             if (((hash >> (i + 2)) & 3) == 0)
             {
@@ -1326,7 +1342,21 @@ public partial class CityGenerator
                 Kit.Box(t, mid + along * off + n * 1.2f + Vector3.up * 2.12f, new Vector3(seg - 0.35f, 0.22f, 0.03f), awn * 0.85f, rot: Quaternion.LookRotation(n), name: "차양끝");
             }
         }
-        // 2층 이상: 층마다 창문 위에 판 간판 (한 층에 최대 2개)
+        // ---------- 2층 이상: 한국 상가 건물처럼 ----------
+        // 세로 간판 탑(모서리) + 층마다 판 간판 / 창문 시트지 글씨 / 돌출 간판을 섞는다
+        float towerSide = ((hash >> 3) & 1) == 0 ? 1f : -1f;
+        bool tower = upper.Count >= 2 && frontLen >= 5f && h >= Facade.ShopFloor + Facade.Floor * 1.5f;
+        if (tower)
+        {
+            var list = new List<(string, Color)>();
+            var seen = new HashSet<string>();
+            var sorted = new List<MapShop>(upper);
+            sorted.Sort((a, b) => b.f.CompareTo(a.f));
+            foreach (var sp in sorted) if (seen.Add(sp.n)) list.Add((sp.n, SignColor(sp, 31)));
+            float top = Mathf.Min(h - 0.4f, Facade.ShopFloor + 0.4f + Mathf.Min(list.Count, 6) * 1.7f);
+            Signage.Tower(t, mid + along * towerSide * (frontLen * 0.5f - 0.35f), n, along, Facade.ShopFloor + 0.35f, top, list);
+            AddShowcase(t.TransformPoint(mid), t.TransformDirection(n), "상가 건물 · 세로 간판");
+        }
         var perFloor = new Dictionary<int, int>();
         int made = 0;
         foreach (var sp in upper)
@@ -1339,11 +1369,64 @@ public partial class CityGenerator
             if (y > h - 0.3f) continue;
             float w = Mathf.Min(frontLen * 0.45f, 1.2f + sp.n.Length * 0.42f);
             float off = (c == 0 ? -1f : 1f) * (frontLen * 0.25f);
+            if (tower) off -= towerSide * 0.5f;   // 세로 간판과 겹치지 않게 살짝 비킨다
             Color bg = SignColor(sp, sp.f);
             string name = sp.n.Length > 10 ? sp.n.Substring(0, 10) : sp.n;
-            SignPanel(t, name, mid + along * off + Vector3.up * y, n, new Vector3(w, 0.62f, 0.08f), bg, TextOn(bg));
+            int mode = Mathf.Abs((sp.n.GetHashCode() + hash) % 3);
+            string cat = sp.c ?? "", mm = sp.m ?? "";
+            if (mode == 1 || mm.Contains("교육") || cat.Contains("PC") || cat.Contains("노래"))
+            {
+                // 창문 시트지 글씨: 큰 글씨가 유리창 가득 (학원·PC방·노래방 느낌)
+                Color fg = mm.Contains("교육") ? Kit.Hex("F2C230") : cat.Contains("PC") || cat.Contains("노래") ? Kit.Hex("E04A8A") : Kit.Hex("E9ECEF");
+                float ch = Mathf.Min(0.95f, frontLen * 0.42f / Mathf.Max(3, name.Length + 1));
+                Signage.WindowText(t, mid + along * off, n, y - 1.05f, name, fg, ch);
+                if (mm.Contains("교육")) Signage.WindowText(t, mid + along * off, n, y - 1.75f, "상담 환영 · " + (sp.f) + "층", Kit.Hex("E9ECEF"), 0.22f);
+            }
+            else if (mode == 2 && !tower)
+                Signage.Projecting(t, mid + along * Mathf.Sign(off) * (frontLen * 0.5f - 0.3f), n, along, y - 1.0f, name, bg);
+            else
+                SignPanel(t, name, mid + along * off + Vector3.up * y, n, new Vector3(w, 0.62f, 0.08f), Signage.Night(bg, 1.1f), TextOn(bg));
             made++;
         }
+        // 계단 입구 + 층별 안내 (위층에 가게가 있으면)
+        if (upper.Count > 0 && frontLen >= 6f)
+        {
+            var lines = new List<string>();
+            var floors = new SortedDictionary<int, string>(Comparer<int>.Create((a, b) => b.CompareTo(a)));
+            foreach (var sp in upper) if (!floors.ContainsKey(sp.f)) floors[sp.f] = sp.n.Length > 8 ? sp.n.Substring(0, 8) : sp.n;
+            foreach (var kv in floors) { lines.Add($"{kv.Key}F  {kv.Value}"); if (lines.Count >= 6) break; }
+            Signage.Directory(t, mid - along * towerSide * (frontLen * 0.5f - 1.6f), n, lines);
+        }
+        // 실외기: 위층 창문 아래에 매달린 에어컨 실외기
+        int floorsUp = Mathf.FloorToInt((h - Facade.ShopFloor) / Facade.Floor);
+        var rnd = new System.Random(hash ^ 0xac);
+        for (int f = 0; f < floorsUp; f++)
+        {
+            if (rnd.NextDouble() < 0.45) continue;
+            float x = ((float)rnd.NextDouble() - 0.5f) * (frontLen - 2f);
+            float y = Facade.ShopFloor + f * Facade.Floor + 0.55f;
+            Vector3 p = mid + along * x + n * 0.33f + Vector3.up * y;
+            Kit.Box(t, p, new Vector3(0.8f, 0.6f, 0.32f), Kit.Hex("D3D6D2"), rot: Quaternion.LookRotation(n), name: "실외기");
+            Kit.Cyl(t, p + n * 0.165f, new Vector3(0.42f, 0.02f, 0.42f), Kit.Hex("5A5E64"), rot: Quaternion.FromToRotation(Vector3.up, n), name: "실외기 팬");
+            Kit.Box(t, p + Vector3.down * 0.34f, new Vector3(0.9f, 0.04f, 0.4f), Kit.Hex("7A7E84"), rot: Quaternion.LookRotation(n), name: "실외기 받침");
+        }
+        // 현수막: 다섯 건물에 하나 꼴 (2052년 구미 이야기 한 조각씩)
+        if (h > Facade.ShopFloor + Facade.Floor && frontLen >= 6f && hash % 5 == 0)
+        {
+            string[] msgs = { "점포 정리 · 전 품목 반값", "생존자는 금오산 대피소로", "격리구역 · 무단 출입 금지", "임대 문의 054-4**-****", "실종자를 찾습니다" };
+            Color[] cols = { Kit.Hex("C8402E"), Kit.Hex("2E6EA8"), Kit.Hex("C8402E"), Kit.Hex("2E3A48"), Kit.Hex("2E3A48") };
+            int mi = (hash / 5) % msgs.Length;
+            Signage.Banner(t, mid - along * towerSide * 0.6f, n, Facade.ShopFloor + 1.55f, Mathf.Min(frontLen - 2.5f, 7f), msgs[mi], cols[mi]);
+        }
+    }
+
+    // ---------- 디자인 둘러보기 (개발용 F8) ----------
+    public struct Showcase { public Vector3 pos; public Vector3 n; public string label; }
+    public static readonly List<Showcase> Showcases = new List<Showcase>();
+    static void AddShowcase(Vector3 worldMid, Vector3 n, string label)
+    {
+        n.y = 0; n.Normalize();
+        Showcases.Add(new Showcase { pos = worldMid, n = n, label = label });
     }
 
     void PlaceShopLoot(List<MapShop> ground, Vector3 mid, Vector3 n, Vector2 d, float frontLen, int hash)
