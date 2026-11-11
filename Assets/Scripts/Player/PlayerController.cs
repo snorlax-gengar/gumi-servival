@@ -73,7 +73,7 @@ public class PlayerController : MonoBehaviour
     [System.NonSerialized] public bool DebugRun, DebugJump;
     public bool IsTraversing => vaulting;
     public int TraverseKind => vaultKind;
-    public void Teleport(Vector3 p) { cc.enabled = false; transform.position = p; cc.enabled = true; verticalVel = 0f; }
+    public void Teleport(Vector3 p) { cc.enabled = false; transform.position = p; cc.enabled = true; verticalVel = 0f; planarVel = Vector3.zero; }
     int vaultKind;
     float vaultDuration;
 
@@ -260,7 +260,18 @@ public class PlayerController : MonoBehaviour
         if (cc.isGrounded && verticalVel < 0) verticalVel = -2f;
         verticalVel += gravity * Time.deltaTime;
 
-        cc.Move((move * speed + Vector3.up * verticalVel) * Time.deltaTime);
+        // 가속·감속: 사람처럼 한두 걸음에 걸쳐 속도가 붙고 줄어든다 (공격 내딛기는 즉시)
+        Vector3 targetVel = move * speed;
+        if (attacking) planarVel = targetVel;
+        else
+        {
+            float rate = targetVel.sqrMagnitude > planarVel.sqrMagnitude ? acceleration : deceleration;
+            if (!cc.isGrounded) rate *= 0.3f;   // 공중에서는 방향을 잘 못 바꾼다
+            planarVel = Vector3.MoveTowards(planarVel, targetVel, rate * Time.deltaTime);
+        }
+        cc.Move((planarVel + Vector3.up * verticalVel) * Time.deltaTime);
+        Acceleration = Mathf.Lerp(Acceleration, (planarVel.magnitude - lastPlanarSpeed) / Mathf.Max(1e-4f, Time.deltaTime), 1f - Mathf.Exp(-8f * Time.deltaTime));
+        lastPlanarSpeed = planarVel.magnitude;
 
         // 웅크리기 시 키 낮추기
         cc.height = Mathf.Lerp(cc.height, IsCrouching ? 1.1f : 1.8f, 10f * Time.deltaTime);
@@ -321,8 +332,22 @@ public class PlayerController : MonoBehaviour
         return true;
     }
 
+    [Header("가속")]
+    public float acceleration = 11f;   // m/s² (걷기 속도까지 약 0.2초)
+    public float deceleration = 14f;
+    Vector3 planarVel;
+    float lastPlanarSpeed;
+    /// <summary>땅 위 이동 속도 벡터 (가속 반영)</summary>
+    public Vector3 PlanarVelocity => planarVel;
+    /// <summary>앞뒤 가속도 (m/s², 몸 기울기용)</summary>
+    public float Acceleration { get; private set; }
+    /// <summary>초당 회전 각도 (+ = 오른쪽, 몸 기울기용)</summary>
+    public float TurnRate { get; private set; }
+
     [Header("회전")]
-    public float turnSpeed = 720f;   // 초당 회전 각도
+    public float turnSpeed = 720f;   // 초당 최대 회전 각도
+    public float turnSmooth = 0.07f; // 회전이 따라가는 시간 (작을수록 빠릿함)
+    float yawVel;
 
     /// <summary>
     /// 키보드 이동 방향을 바라본다 (카메라 기준). 멈추면 마지막 방향을 유지.
@@ -331,9 +356,13 @@ public class PlayerController : MonoBehaviour
     void FaceMoveDirection(Vector3 move)
     {
         move.y = 0;
-        if (move.sqrMagnitude < 0.01f) return;
-        Quaternion target = Quaternion.LookRotation(move.normalized, Vector3.up);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, turnSpeed * Time.deltaTime);
+        if (move.sqrMagnitude < 0.01f) { TurnRate = Mathf.MoveTowards(TurnRate, 0f, 2000f * Time.deltaTime); yawVel = 0f; return; }
+        // 부드럽게 돌기 (갑자기 휙 돌지 않게, 그래도 빠릿하게)
+        float targetYaw = Quaternion.LookRotation(move.normalized, Vector3.up).eulerAngles.y;
+        float y0 = transform.eulerAngles.y;
+        float y = Mathf.SmoothDampAngle(y0, targetYaw, ref yawVel, turnSmooth, turnSpeed);
+        transform.rotation = Quaternion.Euler(0f, y, 0f);
+        TurnRate = Mathf.DeltaAngle(y0, y) / Mathf.Max(1e-4f, Time.deltaTime);
     }
 
     void EmitFootstepNoise()

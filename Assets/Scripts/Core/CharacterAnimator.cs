@@ -54,6 +54,9 @@ public class CharacterAnimator : MonoBehaviour
         if (clips[(int)Slot.Idle] == null && clips[(int)Slot.Walk] == null) return false;
 
         animator.applyRootMotion = false;
+        // 걷기·달리기 발 박자 맞추기: 각 클립에서 왼발이 가장 앞에 나온 순간을 찾아 둔다
+        walkOffset = FootPhase(animator, clips[(int)Slot.Walk]);
+        runOffset = FootPhase(animator, clips[(int)Slot.Run]);
         animator.cullingMode = alwaysAnimate ? AnimatorCullingMode.AlwaysAnimate : AnimatorCullingMode.CullUpdateTransforms;
 
         graph = PlayableGraph.Create(name + "_Anim");
@@ -76,6 +79,32 @@ public class CharacterAnimator : MonoBehaviour
         for (int i = 0; i < SlotCount; i++) names.Add($"{(Slot)i}={(clips[i] ? clips[i].name : "-")}");
         Debug.Log($"[Gumi] {name} 애니메이션: {string.Join(", ", names)}");
         return true;
+    }
+
+    float walkOffset, runOffset, locoPhase;
+
+    /// <summary>클립에서 왼발이 오른발보다 가장 앞에 있는 순간 (0~1). 못 재면 0.</summary>
+    static float FootPhase(Animator animator, AnimationClip clip)
+    {
+        if (clip == null || !animator.isHuman) return 0f;
+        var lf = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+        var rf = animator.GetBoneTransform(HumanBodyBones.RightFoot);
+        if (lf == null || rf == null) return 0f;
+        float best = float.MinValue, bestT = 0f;
+        try
+        {
+            const int N = 32;
+            for (int k = 0; k < N; k++)
+            {
+                float t = k / (float)N;
+                clip.SampleAnimation(animator.gameObject, t * clip.length);
+                float d = Vector3.Dot(lf.position - rf.position, animator.transform.forward);
+                if (d > best) { best = d; bestT = t; }
+            }
+        }
+        catch (System.Exception e) { Debug.LogWarning($"[Gumi] 발 박자 측정 실패 ({clip.name}): {e.Message}"); return 0f; }
+        Debug.Log($"[Gumi] 발 박자 {clip.name}: 왼발 앞 = {bestT:0.00}");
+        return bestT;
     }
 
     static AnimationClip Find(AnimationClip[] all, string[] keys, string[] exclude)
@@ -176,10 +205,19 @@ public class CharacterAnimator : MonoBehaviour
             weights[(int)Slot.Run] = walk * run;
             if (clips[(int)Slot.Idle] == null) { weights[(int)Slot.Walk] += weights[(int)Slot.Idle]; weights[(int)Slot.Idle] = 0f; }
 
-            if (walkClipSpeed > 0f) SetSpeed(Slot.Walk, Mathf.Clamp(speed / walkClipSpeed, 0.6f, 1.8f) * speedScale);
-            else SetSpeed(Slot.Walk, Mathf.Clamp(speed / walkReference, 0.6f, 1.6f) * speedScale);
-            if (runClipSpeed > 0f) SetSpeed(Slot.Run, Mathf.Clamp(speed / runClipSpeed, 0.7f, 1.6f) * speedScale);
-            else SetSpeed(Slot.Run, Mathf.Clamp(speed / runReference, 0.7f, 1.4f) * speedScale);
+            float wPlay = (walkClipSpeed > 0f ? Mathf.Clamp(speed / walkClipSpeed, 0.6f, 1.8f) : Mathf.Clamp(speed / walkReference, 0.6f, 1.6f)) * speedScale;
+            float rPlay = (runClipSpeed > 0f ? Mathf.Clamp(speed / runClipSpeed, 0.7f, 1.6f) : Mathf.Clamp(speed / runReference, 0.7f, 1.4f)) * speedScale;
+            var wc = clips[(int)Slot.Walk]; var rc = clips[(int)Slot.Run];
+            if (wc != null && rc != null)
+            {
+                // 걷기와 달리기를 같은 발 박자로 돌린다: 섞일 때 다리가 엇갈려 꼬이지 않고, 걷다 뛰기가 매끄럽다
+                float rate = Mathf.Lerp(wPlay / wc.length, rPlay / rc.length, run);
+                locoPhase = Mathf.Repeat(locoPhase + rate * dt, 1f);
+                plays[(int)Slot.Walk].SetSpeed(0); plays[(int)Slot.Run].SetSpeed(0);
+                plays[(int)Slot.Walk].SetTime(Mathf.Repeat(locoPhase + walkOffset, 1f) * wc.length);
+                plays[(int)Slot.Run].SetTime(Mathf.Repeat(locoPhase + runOffset, 1f) * rc.length);
+            }
+            else { SetSpeed(Slot.Walk, wPlay); SetSpeed(Slot.Run, rPlay); }
 
             // 웅크리기: 서 있는 동작 대신 웅크려 걷기 (멈추면 그 자세로 정지)
             if (clips[(int)Slot.Crouch] != null && crouchAmount > 0f)

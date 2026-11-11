@@ -114,9 +114,23 @@ public class PlayerVisual : MonoBehaviour
         g.animator = animator;
         g.character = transform;
         g.paused = () => (stats != null && stats.IsDead) || (ctrl != null && (ctrl.IsAirborne || ctrl.IsVaulting));
+        // 고개 돌리기: 어깨 시점에서 둘러보는 쪽을 쳐다본다 (공격·넘기·쓰러짐 중에는 정면)
+        var hl = animator.gameObject.AddComponent<HeadLook>();
+        hl.animator = animator;
+        hl.character = transform;
+        hl.moving = () => ctrl != null ? ctrl.PlanarVelocity.magnitude / 2.3f : 0f;
+        hl.lookDir = () =>
+        {
+            var cam = Camera.main;
+            if (cam == null || IsometricCamera.FirstPerson || (stats != null && stats.IsDead)) return null;
+            if (ctrl != null && (ctrl.IsVaulting || ctrl.IsAttacking)) return null;
+            return cam.transform.forward;
+        };
+        leanBase = t.localRotation;
 
         // 사람 걸음에 맞춘 속도 (좀보이드처럼 걷기는 느긋하게, 뛰어야 따돌린다)
-        if (ctrl != null) { ctrl.walkSpeed = 2.6f; ctrl.runSpeed = 5.5f; ctrl.crouchSpeed = 1.3f; }
+        if (ctrl != null) { ctrl.walkSpeed = 2.3f; ctrl.runSpeed = 5.5f; ctrl.crouchSpeed = 1.3f; }
+        anim.walkReference = 2.3f;
 
         foreach (var r in t.GetComponentsInChildren<Renderer>())
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
@@ -170,6 +184,8 @@ public class PlayerVisual : MonoBehaviour
     }
 
     float airTime;
+    float leanRoll, leanPitch;
+    Quaternion leanBase = Quaternion.identity;
 
     /// <summary>
     /// Remy FBX 안에 묻힌 텍스처는 Unity가 못 찾아서 흰 마네킹처럼 보였다.
@@ -312,6 +328,19 @@ public class PlayerVisual : MonoBehaviour
             Play(CharacterAnimator.Slot.Drop, 0.55f, 0.3f, 0.75f);
         airTime = air ? airTime + Time.deltaTime : 0f;
         anim.SetAirborne(airTime > 0.25f);
+
+        // 몸 기울기: 돌 때는 안쪽으로, 출발할 때는 앞으로, 멈출 때는 뒤로 살짝 (오토바이 타듯 과하지 않게)
+        if (mixamo && ctrl != null)
+        {
+            bool still = ctrl.IsVaulting || air || (stats != null && stats.IsDead) || ctrl.IsAttacking;
+            float spd = ctrl.PlanarVelocity.magnitude;
+            float roll = still ? 0f : Mathf.Clamp(-ctrl.TurnRate * spd * 0.0035f, -10f, 10f);
+            float pitchL = still ? 0f : Mathf.Clamp(ctrl.Acceleration * 0.6f, -5f, 6f) + (ctrl.IsRunning ? 3f : 0f);
+            float k = 1f - Mathf.Exp(-7f * Time.deltaTime);
+            leanRoll = Mathf.Lerp(leanRoll, roll, k);
+            leanPitch = Mathf.Lerp(leanPitch, pitchL, k);
+            model.localRotation = leanBase * Quaternion.Euler(leanPitch, 0f, leanRoll);
+        }
 
         if (anim.HasClip(CharacterAnimator.Slot.Crouch))
         {
