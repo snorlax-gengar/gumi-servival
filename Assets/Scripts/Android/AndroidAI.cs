@@ -60,6 +60,13 @@ public class AndroidAI : MonoBehaviour
     bool hasPendingNoise;
 
     public bool IsStunned => stunTimer > 0;
+    /// <summary>플레이어를 얼마나 알아챘나 (0~1). 1이 되면 추적.</summary>
+    public float Awareness { get; private set; }
+    /// <summary>뭔가 본 것 같아 멈춰서 살피는 중</summary>
+    public bool Noticing { get; private set; }
+    Vector3 searchCenter; int searchLeft; float searchWait;
+    Vector3? pendingAlert; float pendingAlertTime;
+    Flashlight playerLight;
     float pendingHit;
     AndroidVisual visual;
 
@@ -130,6 +137,7 @@ public class AndroidAI : MonoBehaviour
             player = p.transform;
             playerStats = p.GetComponent<PlayerStats>();
             playerController = p.GetComponent<PlayerController>();
+            playerLight = p.GetComponentInChildren<Flashlight>();
         }
     }
 
@@ -138,6 +146,7 @@ public class AndroidAI : MonoBehaviour
         // NavMesh는 LevelNavMesh가 Awake에서 굽기 때문에, 에이전트는 그 뒤(Start)에 켠다
         agent.enabled = true;
         hum = Sfx.Loop("android_hum", transform, 0.18f, 14f);   // 가까이 가면 들리는 낮은 기계음
+        if (pendingAlert.HasValue && agent.isOnNavMesh) { var pa = pendingAlert.Value; pendingAlert = null; Alert(pa, pendingAlertTime); }
         if (!agent.isOnNavMesh)
             Debug.LogWarning($"{name}: NavMesh 위에 있지 않습니다. Level 오브젝트에 LevelNavMesh가 있는지 확인하세요.");
     }
@@ -174,7 +183,8 @@ public class AndroidAI : MonoBehaviour
             if (pendingHit <= 0f && stunTimer <= 0 && player != null)
             {
                 Vector3 f = player.position - transform.position; f.y = 0;
-                if (f.magnitude <= hitReach) playerStats?.TakeDamage(attackDamage);
+                if (playerController != null && playerController.IsDodging) HUD.ShowMessage("피했다!", 0.8f);
+                else if (f.magnitude <= hitReach) playerStats?.TakeDamage(attackDamage);
             }
         }
 
@@ -185,6 +195,7 @@ public class AndroidAI : MonoBehaviour
             {
                 // 정신을 차리면 마지막으로 맞은 방향으로 추적
                 CurrentState = State.Chase;
+                Awareness = 1f;
                 lostTimer = loseSightTime;
                 alertTimer = 0;
             }
@@ -202,7 +213,33 @@ public class AndroidAI : MonoBehaviour
             }
         }
 
-        bool sees = CanSeePlayer();
+        bool sees = CanSeePlayer(out float seeDist, out float seeRange);
+        // 알아채는 데 시간이 걸린다: 멀수록·웅크릴수록 느리고, 코앞이면 즉시. 그 사이에 시야 밖으로 빠지면 들키지 않는다
+        if (CurrentState == State.Chase) Awareness = 1f;
+        else if (sees)
+        {
+            float t = Mathf.Clamp01(seeDist / Mathf.Max(0.1f, seeRange));
+            float fill = Mathf.Lerp(0.12f, 1.4f, t);
+            if (playerController != null && playerController.IsCrouching) fill *= 1.5f;
+            if (playerController != null && playerController.IsRunning) fill *= 0.6f;
+            if (CurrentState == State.Investigate) fill *= 0.5f;   // 이미 경계 중이면 빨리 알아챈다
+            Awareness = Mathf.Min(1f, Awareness + Time.deltaTime / fill);
+            Story.Say("first_seen", "작업형이다. 정면으로 붙으면 진다… 웅크려서(C) 등 뒤로 돌아가거나, 피해 가자.");
+        }
+        else Awareness = Mathf.Max(0f, Awareness - Time.deltaTime * 0.45f);
+
+        Noticing = sees && Awareness < 1f;
+        agent.isStopped = Noticing;
+        if (Noticing)
+        {
+            // "뭐지?" — 멈춰 서서 그쪽으로 천천히 고개를 돌린다
+            Vector3 look = player.position - transform.position; look.y = 0;
+            if (look.sqrMagnitude > 0.01f)
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(look), 100f * Time.deltaTime);
+            return;
+        }
+
+        sees = sees && Awareness >= 1f;
         if (sees)
         {
             if (CurrentState != State.Chase && alertTimer <= 0)
@@ -267,8 +304,19 @@ public class AndroidAI : MonoBehaviour
 
         if (arrived)
         {
-            // 도착하면 제자리에서 두리번거림
-            transform.Rotate(0, 90f * Time.deltaTime, 0);
+            // 도착하면 좌우를 살피고, 근처 몇 군데를 더 뒤져 본 뒤에야 돌아간다
+            searchWait -= Time.deltaTime;
+            Quaternion look = Quaternion.Euler(0, lookYaw, 0);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, look, 110f * Time.deltaTime);
+            if (Quaternion.Angle(transform.rotation, look) < 3f) lookYaw = transform.eulerAngles.y + Random.Range(60f, 150f) * (Random.value < 0.5f ? -1f : 1f);
+            if (searchWait <= 0f && searchLeft > 0)
+            {
+                searchLeft--;
+                searchWait = Random.Range(1.8f, 3f);
+                Vector2 r = Random.insideUnitCircle.normalized * Random.Range(4f, 9f);
+                if (NavMesh.SamplePosition(searchCenter + new Vector3(r.x, 0, r.y), out NavMeshHit nh, 3f, NavMesh.AllAreas))
+                    SetDest(nh.position);
+            }
         }
         if (investigateTimer <= 0) GoPatrol();
     }
@@ -289,9 +337,9 @@ public class AndroidAI : MonoBehaviour
         {
             if (agent.hasPath) agent.ResetPath();
             Vector3 look = player.position - transform.position; look.y = 0;
-            if (look.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(look);
+            if (look.sqrMagnitude > 0.01f) transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(look), 420f * Time.deltaTime);
 
-            if (attackTimer <= 0)
+            if (attackTimer <= 0 && Vector3.Angle(transform.forward, look) < 35f)
             {
                 attackTimer = attackCooldown;
                 pendingHit = hitDelay;
@@ -312,22 +360,28 @@ public class AndroidAI : MonoBehaviour
 
     // ---------- 감지 ----------
 
-    bool CanSeePlayer()
+    bool CanSeePlayer(out float dist, out float range)
     {
+        dist = 0f; range = viewDistance;
         if (player == null || (playerStats != null && playerStats.IsDead)) return false;
 
         Vector3 eye = transform.position + Vector3.up * eyeHeight;
         Vector3 target = player.position + Vector3.up * 1.0f;
         Vector3 dir = target - eye;
-        float dist = dir.magnitude;
+        dist = dir.magnitude;
 
-        float range = viewDistance;
+        range = viewDistance;
         if (playerController != null && playerController.IsCrouching) range *= crouchViewMultiplier;
+        // 밤에는 멀리 못 본다. 단, 손전등을 켜고 있으면 오히려 멀리서도 보인다
+        var gm = GameManager.Instance;
+        if (gm != null && (gm.HourOfDay >= 18.5f || gm.HourOfDay < 6f))
+            range *= playerLight != null && playerLight.IsOn ? 1.25f : 0.6f;
         if (dist > range) return false;
 
         // 바로 옆은 각도와 관계없이 기척을 느낀다. 단, 웅크리고 다가오면 느끼지 못함
         bool crouching = playerController != null && playerController.IsCrouching;
         float closeSense = crouching ? 0f : closeSenseWalk;
+        if (dist <= closeSense) Awareness = 1f;   // 코앞의 기척은 즉시
         if (dist > closeSense && Vector3.Angle(transform.forward, new Vector3(dir.x, 0, dir.z)) > viewAngle * 0.5f)
             return false;
 
@@ -354,6 +408,7 @@ public class AndroidAI : MonoBehaviour
         lastKnownPos = attackerPos;
         if (IsStunned) return; // 기습으로 멈춘 동안은 추적 시작을 미룬다
         lostTimer = loseSightTime;
+        Awareness = 1f;
         CurrentState = State.Chase;
     }
 
@@ -363,6 +418,7 @@ public class AndroidAI : MonoBehaviour
         Sfx.Play("android_die", transform.position + Vector3.up, 0.9f, 0.1f, 1f, 30f);
         if (hum != null) hum.Stop();
         ScenarioManager.Kills++;
+        Story.Say("first_kill", "…멈췄다. 몸통을 열면(E) 쓸 만한 부품이 나온다.");
         if (agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
         agent.enabled = false; // 에이전트가 위치를 다시 끌어올리지 않도록
         if (visual != null && visual.Animated) visual.PlayDeath();   // 쓰러지는 동작
@@ -383,8 +439,22 @@ public class AndroidAI : MonoBehaviour
     void StartInvestigate(Vector3 pos)
     {
         CurrentState = State.Investigate;
-        investigateTimer = investigateTime;
+        investigateTimer = investigateTime + 8f;
+        searchCenter = pos;
+        searchLeft = 2;
+        searchWait = Random.Range(1.5f, 2.5f);
+        lookYaw = transform.eulerAngles.y + Random.Range(-90f, 90f);
         SetDest(pos);
+    }
+
+    /// <summary>먼 곳으로 불려 간다 (야간 순찰대 등). 도착해서 주변을 오래 뒤진다.</summary>
+    public void Alert(Vector3 pos, float searchSeconds)
+    {
+        if (CurrentState == State.Disabled || CurrentState == State.Chase) return;
+        if (!agent.enabled) { pendingAlert = pos; pendingAlertTime = searchSeconds; return; }   // 아직 켜지기 전: Start에서 처리
+        StartInvestigate(pos);
+        investigateTimer = searchSeconds;
+        searchLeft = 5;
     }
 
     void GoPatrol()

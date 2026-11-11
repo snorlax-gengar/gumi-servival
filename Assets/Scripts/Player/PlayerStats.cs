@@ -50,8 +50,12 @@ public class PlayerStats : MonoBehaviour
         thirst = Mathf.Max(0, thirst - thirstPerHour * hours * drainMultiplier);
         if (healthRegenPerHour > 0 && hunger > 20 && thirst > 20) health = Mathf.Min(100, health + healthRegenPerHour * hours);
 
-        if (hunger <= 0) TakeDamage(starvingDamagePerHour * hours);
-        if (thirst <= 0) TakeDamage(starvingDamagePerHour * 1.5f * hours);
+        // 굶주림·탈수는 조용히 깎인다 (매 프레임 비명·화면 흔들림이 나던 버그 수정)
+        if (hunger <= 0) TakeDamage(starvingDamagePerHour * hours, true);
+        if (thirst <= 0) TakeDamage(starvingDamagePerHour * 1.5f * hours, true);
+        if (hunger < 25f) Story.Say("hungry", "배가 너무 고프다. 편의점이든 식당이든, 먹을 걸 찾아야 한다.");
+        if (thirst < 25f) Story.Say("thirsty", "목이 탄다. 물… 음료수라도.");
+        if (health < 35f) Story.Say("hurt", "상처가 깊다. 붕대가 있으면 H로 감자.");
 
         // 스태미나
         if (controller != null && controller.IsRunning)
@@ -60,10 +64,11 @@ public class PlayerStats : MonoBehaviour
             stamina = Mathf.Min(100, stamina + staminaRegen * staminaRegenMultiplier * Time.deltaTime);
     }
 
-    public void TakeDamage(float amount)
+    public void TakeDamage(float amount, bool silent = false)
     {
         if (IsDead) return;
         health = Mathf.Max(0, health - amount);
+        if (silent) { if (health <= 0) Die(); return; }
         Sfx.Play("hurt", transform.position, 0.9f, 0.08f, 0f);
         Sfx.DamageFlash(Mathf.Clamp01(amount / 25f));
         IsometricCamera.Shake(0.5f);

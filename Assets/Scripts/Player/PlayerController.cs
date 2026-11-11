@@ -298,6 +298,33 @@ public class PlayerController : MonoBehaviour
             IsMoving = false;
         }
 
+        // 재빨리 피하기 (Q): 가던 방향으로, 가만히 있으면 뒤로 한 걸음 훌쩍. 안드로이드 주먹이 닿는 순간이면 빗나간다
+        dodgeCooldown -= Time.deltaTime;
+        if ((kb.qKey.wasPressedThisFrame && IsometricCamera.MouseLook || DebugDodge) && dodgeTimer <= 0f && dodgeCooldown <= 0f
+            && cc.isGrounded && !attacking && !Inventory.Open && !MinimapHUD.BigMapOpen)
+        {
+            if (stats != null && stats.stamina < dodgeStamina) HUD.ShowMessage("너무 지쳤다 (스태미나 부족)");
+            else
+            {
+                dodgeDir = move.sqrMagnitude > 0.01f ? move.normalized : -transform.forward;
+                dodgeTimer = dodgeTime;
+                dodgeCooldown = 0.7f;
+                crouchToggle = false;
+                if (stats != null) stats.stamina -= dodgeStamina;
+                Sfx.Play("jump", transform.position, 0.6f, 0.12f, 0f);
+                NoiseSystem.Emit(transform.position, walkNoise);
+            }
+        }
+        DebugDodge = false;
+        bool dodging = dodgeTimer > 0f;
+        if (dodging)
+        {
+            dodgeTimer -= Time.deltaTime;
+            float k = 1f - Mathf.Clamp01(dodgeTimer / dodgeTime);
+            planarVel = dodgeDir * Mathf.Lerp(dodgeSpeed, walkSpeed, k * k);
+            IsRunning = false;
+        }
+
         // 중력
         if (cc.isGrounded && verticalVel < 0) verticalVel = -2f;
         verticalVel += gravity * Time.deltaTime;
@@ -305,7 +332,7 @@ public class PlayerController : MonoBehaviour
         // 가속·감속: 사람처럼 한두 걸음에 걸쳐 속도가 붙고 줄어든다 (공격 내딛기는 즉시)
         Vector3 targetVel = move * speed;
         if (attacking) planarVel = targetVel;
-        else
+        else if (!dodging)
         {
             float rate = targetVel.sqrMagnitude > planarVel.sqrMagnitude ? acceleration : deceleration;
             if (!cc.isGrounded) rate *= 0.3f;   // 공중에서는 방향을 잘 못 바꾼다
@@ -319,7 +346,7 @@ public class PlayerController : MonoBehaviour
         cc.height = Mathf.Lerp(cc.height, IsCrouching ? 1.1f : 1.8f, 10f * Time.deltaTime);
         cc.center = new Vector3(0, cc.height / 2f, 0);
 
-        if (!attacking && !IsometricCamera.FirstPerson) FaceMoveDirection(move);   // 1인칭만 카메라가 몸 방향을 정함
+        if (!attacking && !dodging && !IsometricCamera.FirstPerson) FaceMoveDirection(move);   // 1인칭만 카메라가 몸 방향을 정함
 
         // 발소리 · 착지 소리
         if (cc.isGrounded && !wasGrounded) Sfx.Play("land", transform.position, 0.8f, 0.05f, 0f);
@@ -337,6 +364,15 @@ public class PlayerController : MonoBehaviour
     }
 
     [Header("공격 중 이동")]
+    [Header("피하기 (Q)")]
+    public float dodgeSpeed = 8.5f;
+    public float dodgeTime = 0.3f;      // 약 1.7m
+    public float dodgeStamina = 14f;
+    float dodgeTimer, dodgeCooldown;
+    Vector3 dodgeDir;
+    public bool IsDodging => dodgeTimer > 0f;
+    [System.NonSerialized] public bool DebugDodge;
+
     public float lungeSpeed = 3.5f;     // 휘두를 때 내딛는 속도
     public float lungeTime = 0.12f;     // 내딛는 시간 (0.12초 x 3.5 = 약 0.4m)
     float attackLock, lungeTimer;

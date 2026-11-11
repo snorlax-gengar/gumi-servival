@@ -19,6 +19,8 @@ public class ParkourTest : MonoBehaviour
         var kb = Keyboard.current;
         if (kb != null && kb.f10Key.wasPressedThisFrame && !running) StartCoroutine(Run());
         if (kb != null && kb.f11Key.wasPressedThisFrame && !running) StartCoroutine(Walk());
+        // F12: 시간 1시간 건너뛰기 (밤·순찰대·아침 장면 확인용)
+        if (kb != null && kb.f12Key.wasPressedThisFrame && GameManager.Instance != null) { GameManager.Instance.AdvanceHours(1f); HUD.ShowMessage("(개발) 1시간 건너뜀 → " + GameManager.Instance.ClockText(), 1.5f); }
 #endif
     }
 
@@ -67,6 +69,11 @@ public class ParkourTest : MonoBehaviour
             (Vector3.forward, true, 2.0f),    // 걷다가 뛰기
             (Vector3.right, true, 1.2f),      // 뛰다가 꺾기
             (Vector3.zero, false, 1.5f),      // 뛰다 멈추기
+            (Vector3.back, false, 0.05f),     // 뒤로 피하기 (Q)
+            (Vector3.zero, false, 1.2f),
+            (Vector3.forward, false, 0.6f),
+            (Vector3.left, false, 0.05f),      // 걷다가 옆으로 피하기
+            (Vector3.zero, false, 1.2f),
         };
         foreach (var st in steps)
         {
@@ -74,6 +81,7 @@ public class ParkourTest : MonoBehaviour
             while (Time.time - t0 < st.t)
             {
                 ctrl.DebugMove = st.dir == Vector3.zero ? Vector3.zero : st.dir;
+                if (st.t < 0.1f) ctrl.DebugDodge = true;
                 ctrl.DebugRun = st.run;
                 yield return null;
             }

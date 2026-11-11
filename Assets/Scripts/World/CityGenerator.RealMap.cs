@@ -895,6 +895,7 @@ public partial class CityGenerator
     {
         Vector2 c = Poly.Centroid(pts);
         var origin = new Vector3(c.x, 0, c.y);
+        StationPos = origin;
         const float yb = 7.5f, yt = 17f;
         var mb = new MeshBuilder(5);   // 0 유리벽, 1 지붕, 2 아랫면, 3 기둥, 4 파란 띠
         for (int i = 0; i < pts.Count; i++)
@@ -1699,6 +1700,23 @@ public partial class CityGenerator
             if (Vector3.Distance(pos, pp) < 45f) continue;
             MakeAndroid($"작업형_안드로이드_{++spawnSerial}", pos, Patrol(pos));
         }
+    }
+
+    /// <summary>야간 순찰대: 시야 밖 길에서 n기가 나타나 target(거점) 쪽으로 몰려와 주변을 뒤진다.</summary>
+    public int SpawnRaid(Vector3 target, int n)
+    {
+        if (!RealMapActive || androidRoot == null) return 0;
+        int made = 0;
+        Vector3 pp = PlayerPos();
+        for (int tries = 0; tries < n * 4 && made < n; tries++)
+        {
+            Vector3 pos = RealRoadPoint(target, 60f, 95f);
+            if (Vector3.Distance(pos, pp) < 45f) continue;
+            var ai = MakeAndroid($"순찰대_안드로이드_{++spawnSerial}", pos, Patrol(target));
+            ai.Alert(target + new Vector3(R(-4f, 4f), 0, R(-4f, 4f)), 150f);
+            made++;
+        }
+        return made;
     }
 
     Vector3[] Patrol(Vector3 pos)

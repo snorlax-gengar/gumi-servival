@@ -47,6 +47,9 @@ public partial class CityGenerator : MonoBehaviour
     /// <summary>거점(발전기) 위치와 확실한 연료통 위치 — 시나리오 목표 표시에 쓴다</summary>
     public static Vector3 SafehousePos { get; private set; }
     public static Vector3 FuelHintPos { get; private set; }
+    /// <summary>구미역 (실제 지도일 때만)</summary>
+    public static Vector3? StationPos { get; private set; }
+    public static CityGenerator Instance { get; private set; }
 
     ItemData fuel;
     /// <summary>연료통 (런타임에 만드는 아이템)</summary>
@@ -81,6 +84,8 @@ public partial class CityGenerator : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
+        StationPos = null;
         UsedSeed = seed != 0 ? seed : System.Environment.TickCount;
         rng = new System.Random(UsedSeed);
         root = transform;
@@ -514,7 +519,7 @@ public partial class CityGenerator : MonoBehaviour
         return new Vector3(RoadCenter(i), 0, Mathf.Clamp(c.z + R(-radius, radius), 4, TotalZ - 4));
     }
 
-    void MakeAndroid(string name, Vector3 pos, Vector3[] wps)
+    AndroidAI MakeAndroid(string name, Vector3 pos, Vector3[] wps)
     {
         var a = GameObject.CreatePrimitive(PrimitiveType.Capsule);
         a.SetActive(false); // 컴포넌트를 다 붙인 뒤 켠다
@@ -553,6 +558,7 @@ public partial class CityGenerator : MonoBehaviour
         }
         ai.waypoints = list;
         a.SetActive(true);
+        return ai;
     }
 
     // ================= 헬퍼 =================

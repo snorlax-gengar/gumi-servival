@@ -37,6 +37,7 @@ public class GameManager : MonoBehaviour
         if (GetComponent<PostFX>() == null) gameObject.AddComponent<PostFX>();
         if (GetComponent<PauseMenu>() == null) gameObject.AddComponent<PauseMenu>();
         Sfx.Ensure();
+        Story.Ensure();
         var p = GameObject.FindGameObjectWithTag("Player");
         if (p != null) player = p.GetComponent<PlayerStats>();
     }
@@ -96,6 +97,9 @@ public class GameManager : MonoBehaviour
             Facade.SetNightGlow(1f - Mathf.Clamp01(daylight * 4f));
         }
     }
+
+    /// <summary>시간을 건너뛴다 (개발용 F12)</summary>
+    public void AdvanceHours(float hours) { TotalGameHours += hours; }
 
     public string ClockText()
     {

@@ -120,9 +120,17 @@ public class AndroidFeedback : MonoBehaviour
         }
     }
 
+    float chaseMark; AndroidAI.State lastState;
+
     void OnGUI()
     {
         if (body.IsDead) return;
+        if (Event.current.type == EventType.Repaint && ai != null)
+        {
+            if (ai.CurrentState == AndroidAI.State.Chase && lastState != AndroidAI.State.Chase) chaseMark = 1.2f;
+            lastState = ai.CurrentState;
+            chaseMark -= Time.unscaledDeltaTime;
+        }
         Camera cam = Camera.main;
         if (cam == null) return;
 
@@ -130,6 +138,14 @@ public class AndroidFeedback : MonoBehaviour
         string hint = null;
         Color hintColor = Color.white;
         if (ai != null && ai.IsStunned) { hint = "기절"; hintColor = new Color(1f, 0.85f, 0.3f); }
+        else if (ai != null && ai.CurrentState != AndroidAI.State.Chase && ai.Awareness > 0.05f)
+        {
+            // 알아채는 중: 물음표가 차오르다가 느낌표가 되면 들킨 것
+            int dots = 1 + Mathf.Min(2, (int)(ai.Awareness * 3f));
+            hint = new string('?', dots);
+            hintColor = Color.Lerp(new Color(1f, 0.95f, 0.5f), new Color(1f, 0.45f, 0.2f), ai.Awareness);
+        }
+        else if (ai != null && ai.CurrentState == AndroidAI.State.Chase && chaseMark > 0f) { hint = "!"; hintColor = new Color(1f, 0.25f, 0.2f); }
         else if (ai != null && player != null
                  && Vector3.Distance(player.position, transform.position) < ambushHintRange
                  && ai.CanBeAmbushedFrom(player.position))
