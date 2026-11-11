@@ -1,0 +1,10 @@
+These textures come from Poly Haven (https://polyhaven.com), via the
+Papyszoo/CC0-Public-Domain-Textures mirror. License: CC0 1.0 (public domain).
+No attribution is required; credit is given anyway: textures by Poly Haven.
+
+asphalt_02, concrete_pavers, large_grey_tiles, white_plaster_02,
+painted_plaster_wall, concrete_wall_004, red_brick, long_white_tiles,
+rectangular_facade_tiles
+
+Files are PNG images renamed to .bytes so Unity loads them as TextAssets
+(decoded at runtime with Texture2D.LoadImage). Some are downscaled.

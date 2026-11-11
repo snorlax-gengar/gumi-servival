@@ -287,10 +287,10 @@ public partial class CityGenerator
     void BuildRealFlat()
     {
         flatMats = new Material[F_COUNT];
-        flatMats[F_ASPH] = SurfaceTextures.Asphalt(Kit.Hex("3E4146"), "Asphalt_Alley");
-        flatMats[F_ASPH2] = SurfaceTextures.Asphalt(Kit.Hex("33363B"), "Asphalt_Main");
-        flatMats[F_PAVER] = SurfaceTextures.Pavers(Kit.Hex("A39A8C"), "Pavers_Path");
-        flatMats[F_SIDEWALK] = SurfaceTextures.Pavers(Kit.Hex("B3A99A"), "Pavers_Sidewalk");
+        flatMats[F_ASPH] = CC0Lib.Mat("asphalt_02", "Asphalt_Alley_P", Kit.Hex("4A4C50"), 2f, 0.12f) ?? SurfaceTextures.Asphalt(Kit.Hex("3E4146"), "Asphalt_Alley");
+        flatMats[F_ASPH2] = CC0Lib.Mat("asphalt_02", "Asphalt_Main_P", Kit.Hex("3A3D42"), 3f, 0.14f) ?? SurfaceTextures.Asphalt(Kit.Hex("33363B"), "Asphalt_Main");
+        flatMats[F_PAVER] = CC0Lib.Mat("concrete_pavers", "Pavers_Path_P", Kit.Hex("A39A8C"), 1.5f, 0.1f) ?? SurfaceTextures.Pavers(Kit.Hex("A39A8C"), "Pavers_Path");
+        flatMats[F_SIDEWALK] = CC0Lib.Mat("concrete_pavers", "Pavers_Sidewalk_P", Kit.Hex("B0A698"), 1.6f, 0.1f) ?? SurfaceTextures.Pavers(Kit.Hex("B3A99A"), "Pavers_Sidewalk");
         flatMats[F_CURB] = Kit.Mat(Kit.Hex("C9C4BA"));
         flatMats[F_MANHOLE] = Shiny(Kit.Hex("3A3632"), 0.4f);
         flatMats[F_YELLOW] = Kit.Mat(Kit.Hex("E8B830"));
@@ -300,9 +300,9 @@ public partial class CityGenerator
         flatMats[F_GRASS] = SurfaceTextures.Grass(Kit.Hex("6E8A4E"), Kit.Hex("8A8456"), "Grass_Wild");
         flatMats[F_FARM] = SurfaceTextures.Grass(Kit.Hex("8A8456"), Kit.Hex("6E5E40"), "Farm");
         flatMats[F_PITCH] = SurfaceTextures.Grass(Kit.Hex("557E44"), Kit.Hex("62864C"), "Pitch");
-        flatMats[F_PARKING] = SurfaceTextures.Asphalt(Kit.Hex("4E5156"), "Asphalt_Parking");
+        flatMats[F_PARKING] = CC0Lib.Mat("asphalt_02", "Asphalt_Parking_P", Kit.Hex("55585C"), 3f, 0.12f) ?? SurfaceTextures.Asphalt(Kit.Hex("4E5156"), "Asphalt_Parking");
         flatMats[F_DIRT] = SurfaceTextures.Grass(Kit.Hex("B09872"), Kit.Hex("9C8662"), "Dirt");
-        flatMats[F_PLAZA] = SurfaceTextures.Pavers(Kit.Hex("B5AEA2"), "Pavers_Plaza");
+        flatMats[F_PLAZA] = CC0Lib.Mat("concrete_pavers", "Pavers_Plaza_P", Kit.Hex("B5AEA2"), 2f, 0.1f) ?? SurfaceTextures.Pavers(Kit.Hex("B5AEA2"), "Pavers_Plaza");
         flatMats[F_GRAVEL] = Kit.Mat(Kit.Hex("7A7168"));
         flatMats[F_STEEL] = Shiny(Kit.Hex("8A8F96"), 0.7f);
         flatMats[F_WOOD] = SurfaceTextures.Grass(Kit.Hex("3E5030"), Kit.Hex("5A5438"), "Forest_Floor");
@@ -827,7 +827,7 @@ public partial class CityGenerator
 
             var mats = new[] { Facade.Storefront(sv), Facade.Wall(style, wv), Facade.Roof(style, rv),
                                Kit.Mat(Facade.WallTint(style, wv) * 0.93f), Kit.Mat(Kit.Hex("BFC4C9")),
-                               Kit.Mat(Kit.Hex("D6D0C4")), SurfaceTextures.Pavers(Kit.Hex("C8C2B6"), "Floor_Tile"), SolarMat() };
+                               Kit.Mat(Kit.Hex("D6D0C4")), (CC0Lib.Mat("large_grey_tiles", "Floor_Tile_P", Kit.Hex("C9C5BC"), 1f, 0.45f, 0.6f) ?? SurfaceTextures.Pavers(Kit.Hex("C8C2B6"), "Floor_Tile")), SolarMat() };
             string nm = !string.IsNullOrEmpty(b.n) ? b.n : (b.f == 1 ? "빌라" : b.k);
             var go = mb.Build(nm, BuildingParent(c), origin, mats, !roofOnly);
             if (go == null) continue;

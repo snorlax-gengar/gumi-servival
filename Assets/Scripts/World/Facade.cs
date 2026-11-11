@@ -151,6 +151,7 @@ public static class Facade
         public readonly float[] hgt = new float[W * H];
         public readonly float[] gloss = new float[W * H];
         public readonly float[] glow = new float[W * H];
+        public readonly Vector2[] pn = new Vector2[W * H];   // 실사 노멀 (사진에서 옴)
         public bool HasGlow;
         public readonly System.Random rng;
         public Canvas(int seed) { rng = new System.Random(seed); }
@@ -162,7 +163,7 @@ public static class Facade
                 for (int x = Mathf.Max(0, x0); x < Mathf.Min(W, x1); x++)
                 {
                     int i = y * W + x;
-                    col[i] = c; hgt[i] = h; gloss[i] = g;
+                    col[i] = c; hgt[i] = h; gloss[i] = g; pn[i] = Vector2.zero;
                 }
         }
 
@@ -180,8 +181,9 @@ public static class Facade
         }
 
         /// <summary>벽 바탕: 미세한 얼룩 + 아래쪽 빗물 자국 + 위에서 흘러내린 때</summary>
-        public void Wall(Color c, float roughness)
+        public void Wall(Color c, float roughness, CC0Lib.Photo p = null)
         {
+            if (p != null) { PhotoWall(c, p); return; }
             for (int y = 0; y < H; y++)
                 for (int x = 0; x < W; x++)
                 {
@@ -196,9 +198,46 @@ public static class Facade
                 }
         }
 
+        /// <summary>실사 벽 (미장·도장·콘크리트): 사진의 밝기 결만 가져오고 색은 c. 빗물 자국은 그대로.</summary>
+        void PhotoWall(Color c, CC0Lib.Photo p)
+        {
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float n = Mathf.PerlinNoise(x * 0.03f + 3.1f, y * 0.03f + 7.7f) - 0.5f;
+                    float streak = Mathf.PerlinNoise(x * 0.18f, 0.5f) > 0.72f ? (y / (float)H) * 0.06f : 0f;
+                    float bottom = y < 18 ? (18 - y) / 18f * 0.12f : 0f;
+                    float d = Mathf.Lerp(1f, p.Lum(x, y) / p.meanLum, 0.85f);
+                    int i = y * W + x;
+                    col[i] = c * (d * (1f + n * 0.06f) - streak - bottom);
+                    hgt[i] = 0.5f;
+                    pn[i] = p.Nrm(x, y) * 0.9f;
+                    gloss[i] = 0.08f;
+                }
+        }
+
+        /// <summary>사진을 그대로 깔되 평균색만 c로 맞춘다 (벽돌·타일). gloss는 밝은 곳(타일 면)일수록 높게.</summary>
+        void PhotoTinted(Color c, CC0Lib.Photo p, float g0, float g1)
+        {
+            Color k = new Color(c.r / Mathf.Max(0.02f, p.mean.r), c.g / Mathf.Max(0.02f, p.mean.g), c.b / Mathf.Max(0.02f, p.mean.b));
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    int i = y * W + x;
+                    Color a = p.A(x, y);
+                    float bottom = y < 18 ? (18 - y) / 18f * 0.1f : 0f;
+                    col[i] = new Color(a.r * k.r, a.g * k.g, a.b * k.b) * (1f - bottom);
+                    hgt[i] = 0.5f;
+                    pn[i] = p.Nrm(x, y);
+                    gloss[i] = Mathf.Lerp(g0, g1, Mathf.Clamp01((p.Lum(x, y) / p.meanLum - 0.85f) * 5f));
+                }
+        }
+
         /// <summary>붉은 벽돌 (한국 빌라 단골)</summary>
         public void Bricks(Color c)
         {
+            var ph = CC0Lib.Get("red_brick_128");
+            if (ph != null) { PhotoTinted(c, ph, 0.04f, 0.1f); return; }
             const int bw = 28, bh = 11;
             for (int y = 0; y < H; y++)
             {
@@ -220,6 +259,8 @@ public static class Facade
         /// <summary>흰 타일 외장 (90년대 빌라)</summary>
         public void Tiles(Color c)
         {
+            var ph = CC0Lib.Get("long_white_tiles_128");
+            if (ph != null) { PhotoTinted(c, ph, 0.05f, 0.5f); return; }
             const int t = 24;
             for (int y = 0; y < H; y++)
                 for (int x = 0; x < W; x++)
@@ -374,7 +415,8 @@ public static class Facade
                 {
                     float hl = hgt[y * W + (x + W - 1) % W], hr = hgt[y * W + (x + 1) % W];
                     float hd = hgt[((y + H - 1) % H) * W + x], hu = hgt[((y + 1) % H) * W + x];
-                    Vector3 n = new Vector3((hl - hr) * k, (hd - hu) * k, 1f).normalized;
+                    Vector2 q = pn[y * W + x];
+                    Vector3 n = new Vector3((hl - hr) * k + q.x, (hd - hu) * k + q.y, 1f).normalized;
                     px[y * W + x] = new Color(n.x * 0.5f + 0.5f, n.y * 0.5f + 0.5f, n.z * 0.5f + 0.5f, 1f);
                 }
             t.SetPixels32(px); t.Apply(true);
@@ -412,7 +454,7 @@ public static class Facade
         switch (s)
         {
             case Style.Apt:
-                cv.Wall(wall, 0.05f);
+                cv.Wall(wall, 0.05f, CC0Lib.Get("painted_plaster_wall_256"));
                 cv.Rect(0, 0, W, 12, wall * 0.86f, 0.62f, 0.1f);              // 층 슬래브
                 for (int b = 0; b < 2; b++)
                 {
@@ -427,7 +469,7 @@ public static class Facade
 
             case Style.Shop:
             case Style.Office:
-                cv.Wall(wall, 0.04f);
+                cv.Wall(wall, 0.04f, CC0Lib.Get(v % 2 == 0 ? "rectangular_facade_tiles_256" : "concrete_wall_004_256"));
                 cv.Rect(0, 0, W, 10, wall * 0.82f, 0.62f, 0.12f);
                 for (int b = 0; b < 2; b++)
                 {
@@ -438,14 +480,14 @@ public static class Facade
                 break;
 
             case Style.House:
-                cv.Wall(wall, 0.07f);
+                cv.Wall(wall, 0.07f, CC0Lib.Get("white_plaster_02_256"));
                 cv.Rect(0, 0, W, 8, wall * 0.88f, 0.6f, 0.1f);
                 cv.Window(64, 80, 192, 192, frame * 0.95f, cv.RandomKind(broken), true, glowCh);
                 cv.Window(352, 148, 416, 196, frame * 0.9f, 0, false, 0f);   // 작은 환기창
                 break;
 
             case Style.School:
-                cv.Wall(wall, 0.05f);
+                cv.Wall(wall, 0.05f, CC0Lib.Get("painted_plaster_wall_256"));
                 cv.Rect(0, 0, W, 12, wall * 0.86f, 0.62f, 0.1f);
                 for (int b = 0; b < 4; b++)
                 {
@@ -455,7 +497,7 @@ public static class Facade
                 break;
 
             case Style.Public:
-                cv.Wall(wall, 0.04f);
+                cv.Wall(wall, 0.04f, CC0Lib.Get("concrete_wall_004_256"));
                 cv.Rect(0, 0, W, 12, wall * 0.85f, 0.62f, 0.1f);
                 for (int b = 0; b < 2; b++)
                 {
@@ -468,7 +510,7 @@ public static class Facade
                 Color c = wall;
                 bool brick = c.r > c.g * 1.25f;
                 bool tile = !brick && c.r > 0.9f && c.g > 0.9f;
-                if (brick) cv.Bricks(c); else if (tile) cv.Tiles(c); else cv.Wall(c, 0.06f);
+                if (brick) cv.Bricks(c); else if (tile) cv.Tiles(c); else cv.Wall(c, 0.06f, CC0Lib.Get(v % 2 == 0 ? "white_plaster_02_256" : "painted_plaster_wall_256"));
                 cv.Rect(0, 0, W, 10, (brick ? Kit.Hex("B9B2A6") : c) * 0.88f, 0.62f, 0.1f);
                 cv.Window(40, 68, 216, 200, frame, cv.RandomKind(broken), true, glowCh);
                 cv.Window(324, 124, 444, 200, frame, cv.RandomKind(broken * 0.5f), false, glowCh * 0.5f);   // 욕실 작은 창
@@ -484,7 +526,7 @@ public static class Facade
     {
         var cv = new Canvas(900 + v);
         Color wall = Kit.Hex("8E8A84");
-        cv.Wall(wall, 0.04f);
+        cv.Wall(wall, 0.04f, CC0Lib.Get("rectangular_facade_tiles_256"));
         Color band = SignBands[v % SignBands.Length];
         Color frame = Kit.Hex("3A3F45");
         // 쇼윈도 (아래 0.2 ~ 2.6m)
