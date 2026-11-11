@@ -62,7 +62,7 @@ public class PlayerController : MonoBehaviour
     /// 넘기 판정: 무릎 높이에서 앞이 막혔고, 머리 높이는 뚫려 있고, 장애물 너머에 설 자리가 있으면.
     /// </summary>
     [Tooltip("이 높이까지는 손을 짚고 기어오른다 (차 지붕, 담, 컨테이너, 낮은 지붕)")]
-    const float VaultClipLift = 0.9f;   // Vault.fbx(Vault Over Box)가 스스로 몸을 올리는 높이
+    const float VaultClipLift = 0f;     // 넘기 동작의 높이는 버리고(임포트 설정) 발 높이를 여기서 전부 정한다 → 몸이 물체를 뚫지 않음
     public float climbMaxHeight = 2.0f;     // 차 지붕·담장까지. 건물 지붕·차양은 높이와 상관없이 못 오른다
     public float climbStamina = 14f;
     /// <summary>넘기·오르기 시작 (종류 0 넘기, 1 기어오르기, 2 점프, 길이 초). 애니메이션이 듣는다.</summary>
@@ -111,7 +111,7 @@ public class PlayerController : MonoBehaviour
                 // 달리면서 넘으면 허들처럼 낮고 빠르게, 서서 넘으면 손 짚고 넘기
                 // 서서 넘기는 동작(Vault Over Box)이 몸을 약 0.9m 들어 올리므로, 그보다 높은 만큼만 더 띄운다
                 if (IsRunning) StartTraverse(5, o, p, topY + 0.2f, vaultTime * 0.75f, vaultStamina);
-                else StartTraverse(0, o, p, Mathf.Max(0.05f, topY + 0.15f - VaultClipLift), vaultTime * 1.4f, vaultStamina);
+                else StartTraverse(0, o, p, Mathf.Max(0.05f, topY + 0.15f - VaultClipLift), vaultTime * 1.15f, vaultStamina);
                 return true;
             }
         }
@@ -157,10 +157,50 @@ public class PlayerController : MonoBehaviour
         vaultTo = to;
         vaultPeak = peak;
         vaultDuration = duration;
+        // 넘어가는 길의 높이 단면: 몸(발)이 물체를 뚫지 않게 최소 높이를 미리 재 둔다
+        profileN = 0;
+        if (kind == 0 || kind == 4 || kind == 5)
+        {
+            float clipLift = kind == 5 ? 0f : VaultClipLift;   // 손 짚고 넘기 동작은 스스로 몸을 들어 올린다
+            int mask = ~((1 << 31) | (1 << 30));
+            Vector3 a = from, b = to; a.y = b.y = 0f;
+            float top = Mathf.Max(from.y, to.y) + climbMaxHeight + 0.6f;
+            profileN = Profile.Length;
+            for (int i = 0; i < profileN; i++)
+            {
+                Vector3 q = Vector3.Lerp(a, b, i / (float)(profileN - 1));
+                float h = 0f;
+                // 발 폭만큼 앞뒤도 같이 본다
+                for (int k = -1; k <= 1; k++)
+                {
+                    Vector3 s = q + (b - a).normalized * (k * 0.25f);
+                    if (Physics.Raycast(new Vector3(s.x, top, s.z), Vector3.down, out RaycastHit hh, top - Mathf.Min(from.y, to.y) + 0.2f, mask, QueryTriggerInteraction.Ignore)
+                        && !hh.transform.IsChildOf(transform))
+                        h = Mathf.Max(h, hh.point.y - from.y);
+                }
+                Profile[i] = Mathf.Max(0f, h + 0.08f - clipLift);
+            }
+        }
         cc.enabled = false;
         if (stats != null) stats.stamina -= stamina;
         NoiseSystem.Emit(from, walkNoise);
         OnTraverse?.Invoke(kind, duration);
+    }
+
+    readonly float[] Profile = new float[17];
+    int profileN;
+
+    // 진행도 x(0~1) 근처에서 넘어야 할 최소 높이 (조금 앞을 내다봐서 미리 올라간다)
+    float ProfileAt(float x)
+    {
+        float m = 0f;
+        for (float d = -0.08f; d <= 0.2f; d += 0.02f)
+        {
+            float u = Mathf.Clamp01(x + d) * (profileN - 1);
+            int i = Mathf.Min(profileN - 2, (int)u);
+            m = Mathf.Max(m, Mathf.Lerp(Profile[i], Profile[i + 1], u - i));
+        }
+        return m;
     }
 
     void UpdateVault()
@@ -177,8 +217,10 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            p = Vector3.Lerp(vaultFrom, vaultTo, Mathf.SmoothStep(0, 1, t));
+            float fw = Mathf.SmoothStep(0, 1, t);
+            p = Vector3.Lerp(vaultFrom, vaultTo, fw);
             p.y = Mathf.Lerp(vaultFrom.y, vaultTo.y, t) + Mathf.Sin(t * Mathf.PI) * vaultPeak;
+            if (profileN > 1) p.y = Mathf.Max(p.y, vaultFrom.y + ProfileAt(fw));
         }
         transform.position = p;
         if (t >= 1f)

@@ -164,7 +164,7 @@ public class PlayerVisual : MonoBehaviour
     //  0 넘기: 달리면 허들(Hurdle), 서서는 손 짚고 넘기(Vault)   1 담장 기어오르기(Climb)
     //  2 점프   3 낮은 곳에 올라서기   4 담 넘기(손 짚고 넘어 반대편에 내려섬)
     float lastTraverse = -10f;
-    bool Play(CharacterAnimator.Slot s, float d, float from, float to) => anim.PlayAction(s, d, from, to);
+    bool Play(CharacterAnimator.Slot s, float d, float from, float to, float fadeOut = 0.12f) => anim.PlayAction(s, d, from, to, fadeOut);
     void OnTraverse(int kind, float duration)
     {
         if (anim == null) return;
@@ -172,7 +172,9 @@ public class PlayerVisual : MonoBehaviour
         switch (kind)
         {
             case 0: case 4:   // 손 짚고 넘기 / 담 넘기
-                if (!Play(CharacterAnimator.Slot.Vault, duration, 0.05f, 0.9f)) Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.7f);
+                // 끝부분(깊게 웅크려 착지)은 잘라 바로 걸음으로 이어지게
+                // 착지 뒤 휘청이는 끝부분은 자르고, 마지막 30%는 걷기로 천천히 섞는다
+                if (!Play(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.62f, 0.3f)) Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.7f);
                 break;
             case 5:   // 달리며 넘기(허들): 앞으로 뛰어오르는 점프 동작
                 Play(CharacterAnimator.Slot.Jump, duration, 0.2f, 0.75f);

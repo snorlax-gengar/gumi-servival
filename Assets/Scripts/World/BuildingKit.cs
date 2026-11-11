@@ -297,7 +297,7 @@ public static class BuildingKit
         Color c = CarColors[rng.Next(CarColors.Length)];
         var t = Kit.Group(parent, "주차된 차", localPos, Quaternion.Euler(0, yaw, 0));
         Kit.Box(t, new Vector3(0, 0.55f, 0), new Vector3(1.8f, 0.7f, 4.2f), c, true, name: "차체");
-        Kit.Box(t, new Vector3(0, 1.1f, -0.2f), new Vector3(1.6f, 0.5f, 2.2f), c * 0.92f, name: "지붕");
+        Kit.Box(t, new Vector3(0, 1.1f, -0.2f), new Vector3(1.6f, 0.5f, 2.2f), c * 0.92f, true, name: "지붕");   // 지붕도 부딪힘 (넘을 때 몸이 지붕을 뚫지 않게)
         Kit.Box(t, new Vector3(0, 1.08f, -1.32f), new Vector3(1.5f, 0.42f, 0.05f), Kit.Glass, rot: Quaternion.Euler(-30, 0, 0), name: "앞유리");
         Kit.Box(t, new Vector3(0, 1.08f, 0.92f), new Vector3(1.5f, 0.4f, 0.05f), Kit.Glass, rot: Quaternion.Euler(30, 0, 0), name: "뒷유리");
         foreach (var wpos in new[] { new Vector2(-0.85f, -1.35f), new Vector2(0.85f, -1.35f), new Vector2(-0.85f, 1.35f), new Vector2(0.85f, 1.35f) })

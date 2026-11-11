@@ -151,12 +151,13 @@ public class CharacterAnimator : MonoBehaviour
 
     // ---------------- 점프·낙하·넘기·기어오르기 ----------------
     Slot actionSlot;
-    float actionT = -1f, actionLen = 1f, actionSpeed = 1f;
+    float actionT = -1f, actionLen = 1f, actionSpeed = 1f, actionFadeOut = 0.12f;
     bool airborne;
 
     /// <summary>한 번 재생하는 동작 (넘기·기어오르기·점프 시작). duration 초에 맞춰 from~to 구간을 재생.</summary>
-    public bool PlayAction(Slot slot, float duration, float from = 0f, float to = 1f)
+    public bool PlayAction(Slot slot, float duration, float from = 0f, float to = 1f, float fadeOut = 0.12f)
     {
+        actionFadeOut = Mathf.Clamp(fadeOut, 0.05f, 0.6f);
         if (!IsReady || dead || clips[(int)slot] == null) return false;
         float len = clips[(int)slot].length;
         float span = Mathf.Max(0.05f, to - from) * len;
@@ -242,7 +243,7 @@ public class CharacterAnimator : MonoBehaviour
             {
                 actionT += dt;
                 float t = actionT / actionLen;
-                float a = Mathf.Clamp01(Mathf.Min(t / 0.08f, (1f - t) / 0.12f));
+                float a = Mathf.Clamp01(Mathf.Min(t / 0.08f, (1f - t) / actionFadeOut));
                 for (int i = 0; i < SlotCount; i++) weights[i] *= (1f - a);
                 weights[(int)actionSlot] = a;
                 SetSpeed(actionSlot, actionSpeed);

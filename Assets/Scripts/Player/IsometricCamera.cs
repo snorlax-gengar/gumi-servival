@@ -230,7 +230,7 @@ public class IsometricCamera : MonoBehaviour
         bool trav = pctrl != null && pctrl.IsTraversing;
         traverseGrace = trav ? 0.1f : Mathf.Max(0f, traverseGrace - Time.deltaTime);
         // 넘는 동안 카메라를 살짝 들어 올려 담 너머를 내려다보게 (담이 화면을 가리지 않게)
-        travLift = Mathf.Lerp(travLift, trav ? 1.0f : 0f, (trav ? 6f : 3f) * Time.deltaTime);
+        travLift = Mathf.Lerp(travLift, trav ? 0.7f : 0f, (trav ? 6f : 5f) * Time.deltaTime);
         // 벽에 붙어 걸을 때 카메라가 벽 속으로 들어가지 않게: ① 머리→어깨 옆, ② 어깨→뒤 두 번 검사
         const float camR = 0.25f;
         int mask = ~((1 << AndroidLayer) | (1 << 30) | (1 << 31));

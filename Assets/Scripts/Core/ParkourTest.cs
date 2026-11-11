@@ -103,6 +103,8 @@ public class ParkourTest : MonoBehaviour
         Block(course, new Vector3(0, 0.6f, 22.5f), new Vector3(3, 1.2f, 3f), ob);       // ③ 두꺼운 1.2m: 올라서기 → 걸어서 내려오기
         Block(course, new Vector3(0, 0.9f, 31), new Vector3(3, 1.8f, 0.3f), wall);      // ④ 얇은 담 1.8m: 담 넘기
         Block(course, new Vector3(0, 0.95f, 40f), new Vector3(3, 1.9f, 4f), wall);      // ⑤ 두꺼운 1.9m: 기어오르기 → 뛰어내리기
+        // ⑥ 옆으로 주차된 차: 차 넘기
+        BuildingKit.Car(course, new Vector3(0, 0, 48f), 90f, new System.Random(3));
         // 떨어지지 않게 양옆 난간
         Block(course, new Vector3(-4.1f, 0.5f, 26), new Vector3(0.2f, 1f, 64), floor);
         Block(course, new Vector3(4.1f, 0.5f, 26), new Vector3(0.2f, 1f, 64), floor);
@@ -119,13 +121,13 @@ public class ParkourTest : MonoBehaviour
         if (recorded) rec.StartRecording();
         HUD.ShowMessage("파쿠르 시험 중… (F10)", 2f);
 
-        float[] obstacles = { 6f, 14f, 22.5f - 1.5f, 31f, 40f - 2f };
+        float[] obstacles = { 6f, 14f, 22.5f - 1.5f, 31f, 40f - 2f, 48f - 0.9f };
         int next = 0;
         float t0 = Time.time;
         while (Time.time - t0 < 30f)
         {
             float z = ctrl.transform.position.z - course.position.z;
-            if (z > 50f) break;
+            if (z > 54f) break;
             ctrl.DebugMove = Vector3.forward;
             ctrl.DebugRun = z > 8f && z < 15f;   // ② 허들 구간만 달린다
             if (next < obstacles.Length && !ctrl.IsTraversing)
