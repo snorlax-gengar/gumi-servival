@@ -44,7 +44,15 @@ public class ParkourTest : MonoBehaviour
         var s = showOrder[showIdx];
         Vector3 stand = s.pos + s.n * 6.5f;
         // 서 있을 땅 높이
-        if (Physics.Raycast(stand + Vector3.up * 30f, Vector3.down, out RaycastHit hit, 60f, ~((1 << 30) | (1 << 31)), QueryTriggerInteraction.Ignore)) stand.y = hit.point.y;
+        if (s.label.StartsWith("가게 안"))
+        {
+            // 가게 안: 위에서 쏘면 지붕에 맞으니, 맞은 것 중 가장 낮은 바닥에 선다
+            var hits = Physics.RaycastAll(stand + Vector3.up * 30f, Vector3.down, 60f, ~((1 << 30) | (1 << 31)), QueryTriggerInteraction.Ignore);
+            float low = float.MaxValue;
+            foreach (var h in hits) if (h.normal.y > 0.7f && h.point.y < low) low = h.point.y;
+            if (low < float.MaxValue) stand.y = low;
+        }
+        else if (Physics.Raycast(stand + Vector3.up * 30f, Vector3.down, out RaycastHit hit, 60f, ~((1 << 30) | (1 << 31)), QueryTriggerInteraction.Ignore)) stand.y = hit.point.y;
         ctrl.Teleport(stand + Vector3.up * 0.05f);
         ctrl.transform.rotation = Quaternion.LookRotation(-s.n);
         var cam = FindAnyObjectByType<IsometricCamera>();

@@ -1035,6 +1035,24 @@ public partial class CityGenerator
         if (cvs) mb = new MeshBuilder(2);
 
         if (cvs) Signage.ConvenienceInterior(interiorRoot, nm, c, inner, front, fn, hash, Facade.ShopFloor);
+        var skind = cvs ? ShopInteriors.Kind.None : ShopInteriors.Classify(c0, m0);
+        if (skind != ShopInteriors.Kind.None)
+        {
+            ShopInteriors.Build(skind, interiorRoot, interiorRoot, nm, c, inner, front, fn, hash, Facade.ShopFloor);
+            cvs = true;   // 아래 일반 선반·탁자는 건너뛴다
+            // 둘러보기(F8): 업종마다 두 곳, 문 안쪽에 서서 가게 안을 본다
+            int seen = 0;
+            foreach (var sc in Showcases) if (sc.label.StartsWith("가게 안 · " + skind)) seen++;
+            if (seen < 2)
+            {
+                Vector2 fm = (inner[front] + inner[(front + 1) % inner.Count]) * 0.5f;
+                Vector2 bk = new Vector2(-fn.x, -fn.z);
+                Vector2 stand = fm + bk * 0.9f;
+                Vector3 n3 = new Vector3(fn.x, 0, fn.z);
+                Vector3 w = interiorRoot.TransformPoint(new Vector3(stand.x, 0, stand.y)) - n3 * 6.5f;
+                AddShowcase(w, interiorRoot.TransformDirection(n3), "가게 안 · " + skind + " · " + nm);
+            }
+        }
         // 벽 따라 선반 (정면 벽 제외)
         for (int i = 0; i < inner.Count && !cvs; i++)
         {
