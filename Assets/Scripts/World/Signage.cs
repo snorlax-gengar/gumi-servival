@@ -168,10 +168,24 @@ public static class Signage
         Panel(t, logo, new Vector3(0.7f, 0.62f, 0.04f), rot, Night(CvsMain, 1.8f), "편의점 로고");
         Kit.Label(t, "24", logo + n * 0.03f, Kit.Facing(n), 0.42f, CvsWhite);
         // 이름
-        string nm = name.Length > 12 ? name.Substring(0, 12) : name;
+        // 상호는 크게, 지점명은 작게 (예: "하루24" + "구미역점")
+        string nm = string.IsNullOrEmpty(name) ? "편의점" : name.Trim();
+        string branch = "";
+        int sp = nm.IndexOf(' ');
+        if (sp > 0) { branch = nm.Substring(sp + 1).Trim(); nm = nm.Substring(0, sp); }
+        if (nm.Length > 10) nm = nm.Substring(0, 10);
+        if (branch.Length > 12) branch = branch.Substring(0, 12);
         float avail = w - 1.2f;
-        float ch = Mathf.Min(0.42f, avail / Mathf.Max(3, nm.Length + 1) * 0.95f);
-        Kit.Label(t, nm, band + n * 0.2f + along * 0.35f + Vector3.up * 0.08f, Kit.Facing(n), ch, CvsMain);
+        float ch = Mathf.Min(0.42f, (branch.Length > 0 ? avail * 0.55f : avail) / Mathf.Max(3, nm.Length + 1) * 0.95f);
+        float bh = branch.Length > 0 ? Mathf.Min(0.16f, avail * 0.4f / (branch.Length + 1)) : 0f;
+        float nameW = nm.Length * ch * 0.75f, branchW = branch.Length * bh * 0.95f;
+        // 상호와 지점명을 한 줄에 나란히 (지점명은 작고 회색, 글자 아랫줄 맞춤)
+        Vector3 rowMid = band + n * 0.2f + along * 0.35f + Vector3.up * 0.08f;
+        Vector3 nameAt = rowMid - along * (branch.Length > 0 ? (branchW + 0.15f) * 0.5f : 0f);
+        Kit.Label(t, nm, nameAt, Kit.Facing(n), ch, CvsMain);
+        if (branch.Length > 0)
+            Kit.Label(t, branch, nameAt + along * (nameW * 0.5f + 0.15f + branchW * 0.5f) + Vector3.down * (ch - bh) * 0.35f,
+                Kit.Facing(n), bh, Kit.Hex("5A6066"));
         // 문 위 작은 안내
         Kit.Label(t, "24시간 · 택배 · ATM", mid + n * 0.06f + Vector3.up * 2.42f, Kit.Facing(n), 0.13f, Kit.Hex("2E3135"));
 

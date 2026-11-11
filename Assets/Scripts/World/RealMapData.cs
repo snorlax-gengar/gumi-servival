@@ -27,7 +27,7 @@ public class RealMapData
     {
         var ta = Resources.Load<TextAsset>(resourcePath);
         if (ta == null) return null;
-        try { return JsonUtility.FromJson<RealMapData>(ta.text); }
+        try { var d = JsonUtility.FromJson<RealMapData>(ta.text); Brands.ScrubAll(d); return d; }
         catch (Exception e) { Debug.LogError("[Gumi] 지도 데이터 읽기 실패: " + e.Message); return null; }
     }
 }
