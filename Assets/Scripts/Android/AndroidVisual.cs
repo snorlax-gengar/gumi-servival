@@ -210,6 +210,7 @@ public class AndroidVisual : MonoBehaviour
     }
 
     public void PlayAttack() { if (Animated) anim.PlayAttack(1.3f); }
+    public void CancelAttack() { if (Animated) anim.CancelAttack(); }
     public void PlayDeath() { if (Animated) anim.PlayDeath(); }
 
     void Build()

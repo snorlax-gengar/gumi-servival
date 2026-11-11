@@ -31,6 +31,7 @@ public class AndroidAI : MonoBehaviour
     public float hitDelay = 0.45f;       // 휘두르기 시작 → 맞는 순간
     public float attackDamage = 18f;
     public float attackCooldown = 1.5f;
+    public float flinchTime = 0.7f;      // 맞은 뒤 다시 휘두르기까지
     public float loseSightTime = 4f;
     public float investigateTime = 6f;
 
@@ -105,6 +106,8 @@ public class AndroidAI : MonoBehaviour
     {
         if (seconds >= 1f) Sfx.Play("android_stun", transform.position + Vector3.up, 0.5f, 0.1f, 1f, 20f);
         stunTimer = Mathf.Max(stunTimer, seconds);
+        pendingHit = 0f;   // 밀쳐지거나 기절하면 휘두르던 주먹은 끊긴다
+        if (visual != null) visual.CancelAttack();
         hasPendingNoise = false;
         if (agent.enabled && agent.isOnNavMesh && agent.hasPath) agent.ResetPath();
     }
@@ -406,6 +409,10 @@ public class AndroidAI : MonoBehaviour
     {
         if (CurrentState == State.Disabled) return;
         lastKnownPos = attackerPos;
+        // 맞으면 움찔한다: 휘두르던 주먹은 끊기고(피해 없음), 잠깐 동안 다시 휘두르지 못한다
+        if (pendingHit > 0f) { pendingHit = 0f; HUD.ShowMessage("공격을 끊었다!", 0.8f); }
+        if (visual != null) visual.CancelAttack();
+        attackTimer = Mathf.Max(attackTimer, flinchTime);
         if (IsStunned) return; // 기습으로 멈춘 동안은 추적 시작을 미룬다
         lostTimer = loseSightTime;
         Awareness = 1f;

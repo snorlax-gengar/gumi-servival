@@ -69,6 +69,11 @@ public class ParkourTest : MonoBehaviour
             (Vector3.forward, true, 2.0f),    // 걷다가 뛰기
             (Vector3.right, true, 1.2f),      // 뛰다가 꺾기
             (Vector3.zero, false, 1.5f),      // 뛰다 멈추기
+            (Vector3.forward, false, -1.6f),  // 웅크려 걷기 (시간이 음수 = 웅크림)
+            (Vector3.zero, false, -1.6f),     // 웅크린 채 멈춤
+            (Vector3.right, false, -1.4f),
+            (Vector3.zero, false, -1.2f),
+            (Vector3.zero, false, 0.8f),      // 일어서기
             (Vector3.back, false, 0.05f),     // 뒤로 피하기 (Q)
             (Vector3.zero, false, 1.2f),
             (Vector3.forward, false, 0.6f),
@@ -78,15 +83,17 @@ public class ParkourTest : MonoBehaviour
         foreach (var st in steps)
         {
             float t0 = Time.time;
-            while (Time.time - t0 < st.t)
+            ctrl.DebugCrouch = st.t < 0f;
+            float dur = Mathf.Abs(st.t);
+            while (Time.time - t0 < dur)
             {
                 ctrl.DebugMove = st.dir == Vector3.zero ? Vector3.zero : st.dir;
-                if (st.t < 0.1f) ctrl.DebugDodge = true;
+                if (dur < 0.1f) ctrl.DebugDodge = true;
                 ctrl.DebugRun = st.run;
                 yield return null;
             }
         }
-        ctrl.DebugMove = null; ctrl.DebugRun = false;
+        ctrl.DebugMove = null; ctrl.DebugRun = false; ctrl.DebugCrouch = false;
         yield return new WaitForSeconds(0.5f);
         if (recorded && rec.IsRecording) rec.StopRecording();
         ctrl.Teleport(home);
@@ -129,10 +136,20 @@ public class ParkourTest : MonoBehaviour
         if (recorded) rec.StartRecording();
         HUD.ShowMessage("파쿠르 시험 중… (F10)", 2f);
 
+        // 제자리 점프 → 걷다가 점프
+        ctrl.DebugMove = Vector3.zero;
+        yield return new WaitForSeconds(0.5f);
+        ctrl.DebugJump = true;
+        yield return new WaitForSeconds(1.4f);
+        ctrl.DebugMove = Vector3.forward;
+        yield return new WaitForSeconds(0.9f);
+        ctrl.DebugJump = true;
+        yield return new WaitForSeconds(0.2f);
+
         float[] obstacles = { 6f, 14f, 22.5f - 1.5f, 31f, 40f - 2f, 48f - 0.9f };
         int next = 0;
         float t0 = Time.time;
-        while (Time.time - t0 < 30f)
+        while (Time.time - t0 < 34f)
         {
             float z = ctrl.transform.position.z - course.position.z;
             if (z > 54f) break;

@@ -10,7 +10,7 @@ using UnityEditor;
 public class MixamoImporter : AssetPostprocessor
 {
     const string Folder = "/Resources/Mixamo/";
-    static readonly string[] Loops = { "Idle", "Walk", "Run", "CrouchWalk", "Fall" };
+    static readonly string[] Loops = { "Idle", "Walk", "Run", "CrouchWalk", "Fall", "CrouchIdle" };
 
     // 점프·넘기·기어오르기: 몸이 위로 솟는 높이는 버린다 (높이는 PlayerController가 직접 움직임 → 두 배로 뜨지 않게)
     static readonly string[] Traverse = { "Jump", "Climb", "Hurdle", "Drop", "Vault" };

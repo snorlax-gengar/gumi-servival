@@ -94,7 +94,8 @@ public class PlayerVisual : MonoBehaviour
                 { CharacterAnimator.Slot.Idle, new[] { "idle" } },
                 { CharacterAnimator.Slot.Walk, new[] { "walk" } },
                 { CharacterAnimator.Slot.Run, new[] { "run" } },
-                { CharacterAnimator.Slot.Crouch, new[] { "crouch" } },
+                { CharacterAnimator.Slot.Crouch, new[] { "crouchwalk", "crouch" } },
+                { CharacterAnimator.Slot.CrouchIdle, new[] { "crouchidle" } },
                 { CharacterAnimator.Slot.Attack, new[] { "attackmelee", "attackbat", "mutantpunch" } },
                 { CharacterAnimator.Slot.Death, new[] { "dying" } },
                 { CharacterAnimator.Slot.Jump, new[] { "jump" } },
@@ -171,21 +172,34 @@ public class PlayerVisual : MonoBehaviour
         lastTraverse = Time.time;
         switch (kind)
         {
-            case 0: case 4:   // 손 짚고 넘기 / 담 넘기
-                // 끝부분(깊게 웅크려 착지)은 잘라 바로 걸음으로 이어지게
-                // 착지 뒤 휘청이는 끝부분은 자르고, 마지막 30%는 걷기로 천천히 섞는다
-                if (!Play(CharacterAnimator.Slot.Vault, duration, 0.1f, 0.62f, 0.3f)) Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.7f);
+            case 0:   // 낮은 것 넘기: 앞으로 뛰어넘는 도약 (손 짚고 넘기 동작은 몸이 누운 채 땅에 내려와 굴러 보였다)
+                Play(CharacterAnimator.Slot.Jump, duration, 0.2f, 0.75f, 0.25f);
+                break;
+            case 4:   // 담 넘기: 앞 60%는 매달려 오르고, 나머지는 뛰어내린다
+                Play(CharacterAnimator.Slot.Climb, duration * 0.62f, 0.05f, 0.7f, 0.2f);
+                StartCoroutine(DropAfter(duration * 0.55f, duration * 0.5f));
                 break;
             case 5:   // 달리며 넘기(허들): 앞으로 뛰어오르는 점프 동작
                 Play(CharacterAnimator.Slot.Jump, duration, 0.2f, 0.75f);
                 break;
             case 1: Play(CharacterAnimator.Slot.Climb, duration, 0.05f, 0.95f); break;
-            case 2: Play(CharacterAnimator.Slot.Jump, 0.45f, 0.2f, 0.55f); break;
+            case 2:
+                // 걷거나 뛰다가 점프: 앞으로 뛰어오르는 동작. 제자리 점프: 큰 동작 없이 바로 공중 자세 (제자리에서 달리기 도약 자세가 나오면 어색하다)
+                if (ctrl != null && ctrl.PlanarVelocity.magnitude > 1.2f) Play(CharacterAnimator.Slot.Jump, 0.45f, 0.2f, 0.55f, 0.3f);
+                quickAir = true;
+                break;
             case 3: Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.6f); break;   // 무릎 올려 올라서기
         }
     }
 
-    float airTime;
+    System.Collections.IEnumerator DropAfter(float wait, float duration)
+    {
+        yield return new WaitForSeconds(wait);
+        if (anim != null && !Play(CharacterAnimator.Slot.Drop, duration, 0.3f, 0.75f, 0.25f)) Play(CharacterAnimator.Slot.Jump, duration, 0.4f, 0.75f, 0.25f);
+    }
+
+    float airTime, quickAirGrace = 0.15f;
+    bool quickAir;
     float leanRoll, leanPitch;
     Quaternion leanBase = Quaternion.identity;
 
@@ -329,7 +343,9 @@ public class PlayerVisual : MonoBehaviour
             && !Physics.Raycast(transform.position + Vector3.up * 0.2f, Vector3.down, 1.4f, ~((1 << 30) | (1 << 31)), QueryTriggerInteraction.Ignore))
             Play(CharacterAnimator.Slot.Drop, 0.55f, 0.3f, 0.75f);
         airTime = air ? airTime + Time.deltaTime : 0f;
-        anim.SetAirborne(airTime > 0.25f);
+        if (!air && airTime == 0f && quickAirGrace <= 0f) quickAir = false;
+        quickAirGrace = quickAir && !air ? quickAirGrace - Time.deltaTime : 0.15f;
+        anim.SetAirborne(airTime > (quickAir ? 0.03f : 0.25f));
 
         // 몸 기울기: 돌 때는 안쪽으로, 출발할 때는 앞으로, 멈출 때는 뒤로 살짝 (오토바이 타듯 과하지 않게)
         if (mixamo && ctrl != null)
@@ -352,7 +368,7 @@ public class PlayerVisual : MonoBehaviour
         }
         anim.SetMovement(speed, Mathf.Lerp(1f, 0.75f, crouch));
         model.localPosition = new Vector3(0, -0.06f * crouch, 0);
-        model.localRotation = Quaternion.Euler(18f * crouch, modelYawOffset, 0);
+        model.localRotation = Quaternion.Euler(6f * crouch, modelYawOffset, 0);   // 웅크려 걷기 동작이 이미 숙이고 있어서 조금만 더
     }
 
     void Build()

@@ -268,7 +268,7 @@ public class PlayerController : MonoBehaviour
         if (kb.cKey.wasPressedThisFrame) crouchToggle = !crouchToggle;
         if (kb.leftShiftKey.isPressed && input.sqrMagnitude > 0.01f) crouchToggle = false;   // 달리면 일어선다
         // Ctrl 누르고 있기 웅크림은 뺐다: 에디터에서 Ctrl+P로 플레이를 시작하면 Ctrl이 눌린 채로 남아 저절로 웅크리는 버그가 있었다
-        IsCrouching = crouchToggle;
+        IsCrouching = crouchToggle || DebugCrouch;
         bool canRun = stats == null || stats.CanRun;
         if (DebugMove.HasValue) input = new Vector2(0f, DebugMove.Value.sqrMagnitude > 0.01f ? 1f : 0f);
         IsRunning = (kb.leftShiftKey.isPressed || DebugRun) && !IsCrouching && canRun && input.sqrMagnitude > 0.01f;
@@ -377,7 +377,7 @@ public class PlayerController : MonoBehaviour
     float dodgeTimer, dodgeCooldown;
     Vector3 dodgeDir;
     public bool IsDodging => dodgeTimer > 0f;
-    [System.NonSerialized] public bool DebugDodge;
+    [System.NonSerialized] public bool DebugDodge, DebugCrouch;
 
     public float lungeSpeed = 3.5f;     // 휘두를 때 내딛는 속도
     public float lungeTime = 0.12f;     // 내딛는 시간 (0.12초 x 3.5 = 약 0.4m)

@@ -12,8 +12,8 @@ using UnityEngine.Playables;
 /// </summary>
 public class CharacterAnimator : MonoBehaviour
 {
-    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5, Jump = 6, Fall = 7, Vault = 8, Climb = 9, Hurdle = 10, Drop = 11 }
-    const int SlotCount = 12;
+    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5, Jump = 6, Fall = 7, Vault = 8, Climb = 9, Hurdle = 10, Drop = 11, CrouchIdle = 12 }
+    const int SlotCount = 13;
 
     public float walkReference = 1.6f;   // 이 속도(m/s)에서 걷기 동작이 완전히 섞인다
     public float runReference = 4.5f;    // 이 속도에서 달리기 동작이 완전히 섞인다
@@ -57,6 +57,8 @@ public class CharacterAnimator : MonoBehaviour
         // 걷기·달리기 발 박자 맞추기: 각 클립에서 왼발이 가장 앞에 나온 순간을 찾아 둔다
         walkOffset = FootPhase(animator, clips[(int)Slot.Walk]);
         runOffset = FootPhase(animator, clips[(int)Slot.Run]);
+        crouchOffset = FootPhase(animator, clips[(int)Slot.Crouch]);
+        CaptureArms(animator);
         animator.cullingMode = alwaysAnimate ? AnimatorCullingMode.AlwaysAnimate : AnimatorCullingMode.CullUpdateTransforms;
 
         graph = PlayableGraph.Create(name + "_Anim");
@@ -81,7 +83,10 @@ public class CharacterAnimator : MonoBehaviour
         return true;
     }
 
-    float walkOffset, runOffset, locoPhase;
+    float walkOffset, runOffset, locoPhase, crouchOffset, crouchPhase;
+
+    /// <summary>하던 공격 동작을 끊는다 (맞아서 움찔할 때)</summary>
+    public void CancelAttack() { if (attackT >= 0f) attackT = Mathf.Max(attackT, attackLen * 0.86f); }
 
     /// <summary>클립에서 왼발이 오른발보다 가장 앞에 있는 순간 (0~1). 못 재면 0.</summary>
     static float FootPhase(Animator animator, AnimationClip clip)
@@ -227,8 +232,24 @@ public class CharacterAnimator : MonoBehaviour
                 weights[(int)Slot.Idle] *= 1f - c;
                 weights[(int)Slot.Walk] *= 1f - c;
                 weights[(int)Slot.Run] *= 1f - c;
-                weights[(int)Slot.Crouch] = c;
-                SetSpeed(Slot.Crouch, Mathf.Clamp(speed / Mathf.Max(0.1f, crouchClipSpeed), 0f, 1.8f));
+                var cc = clips[(int)Slot.Crouch];
+                // 멈추면 걷던 동작 중간(한 발 든 채)에 얼어붙지 않게, 두 발이 다 땅에 닿은 자세까지 마저 디디고 선다
+                float step = Mathf.Clamp(speed / Mathf.Max(0.1f, crouchClipSpeed), 0f, 1.8f) / cc.length * dt;
+                if (speed < 0.12f)
+                {
+                    float dA = Mathf.DeltaAngle(crouchPhase * 360f, (crouchOffset + crouchStopShift) * 360f) / 360f;          // 왼발 앞 자세까지
+                    float dB = Mathf.DeltaAngle(crouchPhase * 360f, (crouchOffset + 0.5f + crouchStopShift) * 360f) / 360f;   // 오른발 앞 자세까지
+                    float d = Mathf.Abs(dA) < Mathf.Abs(dB) ? dA : dB;
+                    step = Mathf.Sign(d) * Mathf.Min(Mathf.Abs(d), 0.9f / cc.length * dt);
+                }
+                crouchPhase = Mathf.Repeat(crouchPhase + step, 1f);
+                plays[(int)Slot.Crouch].SetSpeed(0);
+                plays[(int)Slot.Crouch].SetTime(crouchPhase * cc.length);
+                // 웅크려 가만히 있는 전용 동작이 있으면 멈췄을 때 그걸로
+                float idleShare = clips[(int)Slot.CrouchIdle] != null ? 1f - Mathf.Clamp01(speed / 0.5f) : 0f;
+                weights[(int)Slot.Crouch] = c * (1f - idleShare);
+                weights[(int)Slot.CrouchIdle] = c * idleShare;
+                SetSpeed(Slot.CrouchIdle, 1f);
             }
 
             // 공중: 낙하 동작
@@ -263,18 +284,67 @@ public class CharacterAnimator : MonoBehaviour
             }
         }
 
+        // 동작이 바뀔 때 자세가 뚝 튀지 않게, 모든 섞임 비율을 약 0.12초에 걸쳐 따라가게 한다 (착지·일어서기·넘기 끝 등)
+        float sum = 0f;
+        for (int i = 0; i < SlotCount; i++)
+        {
+            if (clips[i] == null) { smooth[i] = 0f; continue; }
+            smooth[i] = dead ? weights[i] : Mathf.MoveTowards(smooth[i], weights[i], 8f * dt);
+            sum += smooth[i];
+        }
+        if (sum < 1e-4f) sum = 1f;
+        armRelax = smooth[(int)Slot.Crouch] / sum;
         for (int i = 0; i < SlotCount; i++)
         {
             if (clips[i] == null) continue;
-            mixer.SetInputWeight(i, weights[i]);
+            mixer.SetInputWeight(i, smooth[i] / sum);
             // 이동 클립은 직접 반복
-            if (i <= (int)Slot.Run || i == (int)Slot.Crouch || i == (int)Slot.Fall)
+            if (i <= (int)Slot.Run || i == (int)Slot.Fall || i == (int)Slot.CrouchIdle)
             {
                 double len = clips[i].length;
                 double tm = plays[i].GetTime();
                 if (len > 0.01 && tm > len) plays[i].SetTime(tm % len);
             }
         }
+    }
+
+    readonly float[] smooth = new float[SlotCount];
+    float armRelax;
+    Transform[] armBones; Quaternion[] armRest;
+    static readonly HumanBodyBones[] ArmIds =
+    {
+        HumanBodyBones.LeftShoulder, HumanBodyBones.LeftUpperArm, HumanBodyBones.LeftLowerArm,
+        HumanBodyBones.RightShoulder, HumanBodyBones.RightUpperArm, HumanBodyBones.RightLowerArm,
+    };
+
+    /// <summary>서 있는 동작의 팔 자세를 기억해 둔다 (웅크릴 때 팔을 내리는 데 쓴다)</summary>
+    void CaptureArms(Animator animator)
+    {
+        var idle = clips[(int)Slot.Idle];
+        if (idle == null || !animator.isHuman) return;
+        try
+        {
+            idle.SampleAnimation(animator.gameObject, 0f);
+            armBones = new Transform[ArmIds.Length]; armRest = new Quaternion[ArmIds.Length];
+            for (int i = 0; i < ArmIds.Length; i++)
+            {
+                armBones[i] = animator.GetBoneTransform(ArmIds[i]);
+                if (armBones[i] != null) armRest[i] = armBones[i].localRotation;
+            }
+        }
+        catch { armBones = null; }
+    }
+
+    /// <summary>웅크려 걷기 동작은 두 팔을 얼굴 앞에 든 자세라 권투하는 것처럼 보인다 → 팔만 편하게 내린다</summary>
+    public float crouchArmRelax = 0.8f;
+    /// <summary>멈출 때 서는 자세: 0 = 두 발을 한껏 벌린 순간, 0.12 = 발이 조금 모인 순간 (덜 벌어져 자연스럽다)</summary>
+    public float crouchStopShift = 0.12f;
+    void LateUpdate()
+    {
+        if (!IsReady || armBones == null || armRelax < 0.01f || crouchArmRelax <= 0f) return;
+        float k = armRelax * crouchArmRelax;
+        for (int i = 0; i < armBones.Length; i++)
+            if (armBones[i] != null) armBones[i].localRotation = Quaternion.Slerp(armBones[i].localRotation, armRest[i], k);
     }
 
     void SetSpeed(Slot s, float v)
