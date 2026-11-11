@@ -76,7 +76,7 @@ public class PostFX : MonoBehaviour
         float night = 1f - Mathf.Clamp01(daylight * 3f);
 
         color.saturation.value = Mathf.Lerp(-24f, -45f, night);
-        color.postExposure.value = Mathf.Lerp(0.25f, 0.55f, night);   // 밤에도 윤곽은 보이게
+        color.postExposure.value = Mathf.Lerp(0.25f, 0.8f, night);   // 밤에도 윤곽은 보이게
         white.temperature.value = Mathf.Lerp(6f, -28f, night) + dusk * 22f;
         white.tint.value = Mathf.Lerp(2f, 6f, night);
         vignette.intensity.value = Mathf.Lerp(0.32f, 0.48f, night);

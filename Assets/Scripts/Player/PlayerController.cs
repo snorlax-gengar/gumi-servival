@@ -281,6 +281,12 @@ public class PlayerController : MonoBehaviour
             fwd = Vector3.ProjectOnPlane(cameraTransform.forward, Vector3.up).normalized;
             right = Vector3.ProjectOnPlane(cameraTransform.right, Vector3.up).normalized;
         }
+        if (IsometricCamera.MouseLook)
+        {
+            // Alt 둘러보기 중에는 카메라가 아니라 원래 가던 방향 기준으로 움직인다
+            var q = Quaternion.Euler(0f, IsometricCamera.MoveYaw, 0f);
+            fwd = q * Vector3.forward; right = q * Vector3.right;
+        }
         Vector3 move = DebugMove.HasValue ? DebugMove.Value : fwd * input.y + right * input.x;
 
         float speed = IsCrouching ? crouchSpeed : IsRunning ? runSpeed : walkSpeed;

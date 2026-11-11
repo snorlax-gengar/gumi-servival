@@ -28,7 +28,7 @@ public class GameManager : MonoBehaviour
     public static bool FogOn { get; private set; }
     /// <summary>카메라에서 안개가 끝까지 짙어지는 깊이 (카메라가 거리를 더해 쓴다)</summary>
     public static float FogDepth { get; private set; } = 200f;
-    static readonly Color DayFog = new Color(0.66f, 0.69f, 0.72f), DuskFog = new Color(0.55f, 0.45f, 0.40f), NightFog = new Color(0.05f, 0.06f, 0.09f);
+    static readonly Color DayFog = new Color(0.66f, 0.69f, 0.72f), DuskFog = new Color(0.55f, 0.45f, 0.40f), NightFog = new Color(0.07f, 0.09f, 0.15f);
 
     void Awake()
     {
@@ -79,15 +79,25 @@ public class GameManager : MonoBehaviour
             sun.intensity = daylight * 1.15f + 0.04f;
             // 해 높이에 따라 빛 색: 낮은 해는 주황, 한낮은 살짝 누런 흰빛
             sun.color = Color.Lerp(Kit.Hex("FF9A55"), Kit.Hex("FFF1DC"), Mathf.Clamp01(daylight * 2.2f));
+            // 밤: 같은 조명을 달빛으로 쓴다 (푸르스름하고 약한 빛이 위에서 비춰 윤곽과 그림자가 보인다)
+            bool nightNow = HourOfDay >= 18f || HourOfDay < 6f;
+            if (nightNow)
+            {
+                float into = HourOfDay >= 18f ? HourOfDay - 18f : Mathf.Min(HourOfDay + 6f, 6f - HourOfDay);   // 해 진 뒤·뜨기 전 시간
+                float moon = Mathf.Clamp01(into / 0.6f);
+                sun.transform.rotation = Quaternion.Euler(52f, 305f, 0);
+                sun.color = Kit.Hex("9DB4E8");
+                sun.intensity = 0.04f + moon * 0.42f;
+            }
             sun.shadowStrength = 0.85f;
             // 주변광: 하늘·지평선·땅 세 가지 색 (평평한 회색보다 입체감이 난다)
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            float amb = Mathf.Lerp(0.16f, 1f, Mathf.Clamp01(daylight * 2.5f));
-            RenderSettings.ambientSkyColor = Color.Lerp(Kit.Hex("1A2238"), Kit.Hex("9DB0C8"), amb) * amb;
-            RenderSettings.ambientEquatorColor = Color.Lerp(Kit.Hex("141820"), Kit.Hex("A39C8E"), amb) * amb;
-            RenderSettings.ambientGroundColor = Color.Lerp(Kit.Hex("0B0C10"), Kit.Hex("5E584E"), amb) * amb;
+            float amb = Mathf.Lerp(0.42f, 1f, Mathf.Clamp01(daylight * 2.5f));   // 밤에도 사물 윤곽은 보이게
+            RenderSettings.ambientSkyColor = Color.Lerp(Kit.Hex("2C3C66"), Kit.Hex("9DB0C8"), amb) * amb;
+            RenderSettings.ambientEquatorColor = Color.Lerp(Kit.Hex("232C44"), Kit.Hex("A39C8E"), amb) * amb;
+            RenderSettings.ambientGroundColor = Color.Lerp(Kit.Hex("14182A"), Kit.Hex("5E584E"), amb) * amb;
             // 밤에는 주변광도 어둡게: 가로등과 발전기 불빛만 의지하게
-            RenderSettings.ambientIntensity = Mathf.Lerp(0.18f, 1f, Mathf.Clamp01(daylight * 2.5f));
+            RenderSettings.ambientIntensity = Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(daylight * 2.5f));
             RenderSettings.reflectionIntensity = Mathf.Lerp(0.2f, 1f, daylight);
             float dusk = Mathf.Clamp01(1f - Mathf.Abs(daylight - 0.15f) * 6f);
             Color fog = Color.Lerp(NightFog, DayFog, Mathf.Clamp01(daylight * 2f));

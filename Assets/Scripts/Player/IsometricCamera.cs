@@ -164,9 +164,34 @@ public class IsometricCamera : MonoBehaviour
     void UpdateCursor()
     {
         var kb = Keyboard.current;
-        bool free = !MouseLook || MinimapHUD.BigMapOpen || PauseMenu.IsPaused || Inventory.Open || (kb != null && kb.leftAltKey.isPressed);
+        bool free = !MouseLook || MinimapHUD.BigMapOpen || PauseMenu.IsPaused || Inventory.Open;
         Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = free;
+    }
+
+    /// <summary>Alt를 누르고 있는 동안: 몸과 가는 방향은 그대로 두고 카메라만 360도 둘러본다 (배그식). 떼면 원래 보던 곳으로 돌아온다.</summary>
+    public static bool FreeLook { get; private set; }
+    /// <summary>이동의 기준이 되는 방향 (평소엔 카메라 방향, 둘러보기 중엔 Alt를 누르기 전 방향)</summary>
+    public static float MoveYaw { get; private set; }
+    float lookBaseYaw, lookBasePitch;
+    bool lookReturning;
+
+    void UpdateFreeLook()
+    {
+        var kb = Keyboard.current;
+        bool alt = kb != null && kb.leftAltKey.isPressed && Cursor.lockState == CursorLockMode.Locked;
+        if (alt && !FreeLook && !lookReturning) { lookBaseYaw = fpYaw; lookBasePitch = fpPitch; }
+        if (alt) lookReturning = false;
+        else if (FreeLook) lookReturning = true;
+        FreeLook = alt;
+        if (lookReturning)
+        {
+            float k = 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime);
+            fpYaw = Mathf.LerpAngle(fpYaw, lookBaseYaw, k);
+            fpPitch = Mathf.Lerp(fpPitch, lookBasePitch, k);
+            if (Mathf.Abs(Mathf.DeltaAngle(fpYaw, lookBaseYaw)) < 0.5f) { fpYaw = lookBaseYaw; fpPitch = lookBasePitch; lookReturning = false; }
+        }
+        MoveYaw = FreeLook || lookReturning ? lookBaseYaw : fpYaw;
     }
 
     void RestoreAllGhosts()
@@ -182,11 +207,11 @@ public class IsometricCamera : MonoBehaviour
         if (mouse != null && Cursor.lockState == CursorLockMode.Locked)
         {
             Vector2 d = mouse.delta.ReadValue() * mouseSensitivity;
-            fpYaw += d.x;
-            fpPitch = Mathf.Clamp(fpPitch - d.y, -80f, 80f);
+            if (!lookReturning) { fpYaw += d.x; fpPitch = Mathf.Clamp(fpPitch - d.y, -80f, 80f); }
         }
-        // 몸은 보는 방향
-        target.rotation = Quaternion.Euler(0f, fpYaw, 0f);
+        UpdateFreeLook();
+        // 몸은 보는 방향 (Alt 둘러보기 중에는 몸은 그대로)
+        target.rotation = Quaternion.Euler(0f, MoveYaw, 0f);
         currentYaw = fpYaw;
 
         bool crouch = pctrl != null && pctrl.IsCrouching;
@@ -219,9 +244,9 @@ public class IsometricCamera : MonoBehaviour
         if (mouse != null && Cursor.lockState == CursorLockMode.Locked)
         {
             Vector2 d = mouse.delta.ReadValue() * mouseSensitivity;
-            fpYaw += d.x;
-            fpPitch = Mathf.Clamp(fpPitch - d.y, -60f, 70f);
+            if (!lookReturning) { fpYaw += d.x; fpPitch = Mathf.Clamp(fpPitch - d.y, -60f, 70f); }
         }
+        UpdateFreeLook();
         // 어깨 시점: 카메라는 마우스로 따로 돌고, 캐릭터는 WASD로 누른 방향을 향한다 (GTA식)
         currentYaw = fpYaw;
 
