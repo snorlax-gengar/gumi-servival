@@ -77,6 +77,7 @@ public partial class CityGenerator
         BuildDoorMarkers();
         BuildRealProps();
         BuildRealStreetFurniture();
+        BuildRuinsStreet();
         Debug.Log($"[Gumi] 실제 구미 지도 생성: 건물 {real.buildings.Length}, 도로 {real.roads.Length}, 나무 {(real.trees != null ? real.trees.Length / 3 : 0)} ({Time.realtimeSinceStartup - t0:0.0}초)");
         return true;
     }
@@ -832,6 +833,7 @@ public partial class CityGenerator
             var go = mb.Build(nm, BuildingParent(c), origin, mats, !roofOnly);
             if (go == null) continue;
             go.AddComponent<OccluderGroup>();
+            if (!roofOnly && b.k != "station") RuinBuilding(go.transform, pts, c, h, hash, front, enter);
             if (front < 0 || roofOnly) continue;
 
             // ---------- 정면 장식 / 간판 / 뒤질 곳 ----------
@@ -1679,7 +1681,11 @@ public partial class CityGenerator
                         {
                             var pos = new Vector3(pp.x, 0, pp.y);
                             BuildingKit.UtilityPole(street, pos, Mathf.Atan2(n.x, n.y) * Mathf.Rad2Deg, Chance(0.15f));
-                            if (havePole && (pos - lastPole).magnitude < 45f) BuildingKit.Wires(street, lastPole, pos);
+                            if (havePole && (pos - lastPole).magnitude < 45f)
+                            {
+                                BuildingKit.Wires(street, lastPole, pos);
+                                if (Chance(0.12f)) Banner(pos, lastPole, n);
+                            }
                             lastPole = pos; havePole = true;
                             poles++;
                         }
@@ -1696,7 +1702,8 @@ public partial class CityGenerator
                             {
                                 float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg + (Chance(0.5f) ? 0f : 180f);
                                 var car = BuildingKit.Car(street, new Vector3(cp.x, 0f, cp.y), yaw + R(-4f, 4f), rng);
-                                if (Chance(0.4f))
+                                if (Chance(0.2f)) BuildingKit.Burn(car, rng);
+                                else if (Chance(0.4f))
                                 {
                                     AddLoot(car.GetChild(0).gameObject, "주차된 차 트렁크",
                                         (water, 0.4f, 1), (pipe, 0.15f, 1), (coffee, 0.4f, 1), (bandage, 0.3f, 1), (Fuel, 0.3f, 1));

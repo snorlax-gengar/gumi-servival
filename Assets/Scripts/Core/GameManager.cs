@@ -28,7 +28,7 @@ public class GameManager : MonoBehaviour
     public static bool FogOn { get; private set; }
     /// <summary>카메라에서 안개가 끝까지 짙어지는 깊이 (카메라가 거리를 더해 쓴다)</summary>
     public static float FogDepth { get; private set; } = 200f;
-    static readonly Color DayFog = new Color(0.66f, 0.69f, 0.72f), DuskFog = new Color(0.55f, 0.45f, 0.40f), NightFog = new Color(0.07f, 0.09f, 0.15f);
+    static readonly Color DayFog = new Color(0.64f, 0.645f, 0.64f), DuskFog = new Color(0.55f, 0.45f, 0.40f), NightFog = new Color(0.07f, 0.09f, 0.15f);
 
     void Awake()
     {

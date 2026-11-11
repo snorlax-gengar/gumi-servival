@@ -33,8 +33,8 @@ public class PostFX : MonoBehaviour
 
         color = p.Add<ColorAdjustments>(true);
         color.postExposure.Override(0.25f);
-        color.contrast.Override(16f);
-        color.saturation.Override(-24f);
+        color.contrast.Override(20f);
+        color.saturation.Override(-30f);
 
         white = p.Add<WhiteBalance>(true);
         white.temperature.Override(6f);
@@ -75,7 +75,7 @@ public class PostFX : MonoBehaviour
         float dusk = Mathf.Clamp01(1f - Mathf.Abs(daylight - 0.18f) * 5f);   // 해 뜰 때·질 때
         float night = 1f - Mathf.Clamp01(daylight * 3f);
 
-        color.saturation.value = Mathf.Lerp(-24f, -45f, night);
+        color.saturation.value = Mathf.Lerp(-30f, -45f, night);   // 전쟁 뒤 잿빛 도시
         color.postExposure.value = Mathf.Lerp(0.25f, 0.8f, night);   // 밤에도 윤곽은 보이게
         white.temperature.value = Mathf.Lerp(6f, -28f, night) + dusk * 22f;
         white.tint.value = Mathf.Lerp(2f, 6f, night);

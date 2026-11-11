@@ -307,6 +307,25 @@ public static class BuildingKit
         return t;
     }
 
+    /// <summary>불탄 차로 바꾼다: 그을린 몸체, 녹, 유리 없음, 바퀴 빠져 주저앉음</summary>
+    public static void Burn(Transform car, System.Random rnd)
+    {
+        var charred = Kit.Mat(Kit.Hex("26221F"));
+        var rust = Kit.Mat(Kit.Hex("5A3A2A"));
+        var ash = Kit.Mat(Kit.Hex("4A4642"));
+        foreach (var r in car.GetComponentsInChildren<MeshRenderer>())
+        {
+            string n = r.gameObject.name;
+            if (n.Contains("유리") || n.Contains("전조등")) { r.enabled = false; continue; }
+            if (n.Contains("바퀴")) { r.transform.localScale = new Vector3(r.transform.localScale.x * 0.7f, r.transform.localScale.y, r.transform.localScale.z * 0.7f); continue; }
+            double k = rnd.NextDouble();
+            r.sharedMaterial = k < 0.5 ? charred : k < 0.8 ? rust : ash;
+        }
+        car.localPosition += Vector3.down * 0.12f;
+        car.localRotation *= Quaternion.Euler((float)rnd.NextDouble() * 4f - 2f, 0, (float)rnd.NextDouble() * 4f - 2f);
+        car.name = "불탄 차";
+    }
+
     static void Forklift(Transform parent, Vector3 pos, float yaw)
     {
         var t = Kit.Group(parent, "지게차", pos, Quaternion.Euler(0, yaw, 0));
