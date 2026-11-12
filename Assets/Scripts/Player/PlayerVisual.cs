@@ -185,7 +185,9 @@ public class PlayerVisual : MonoBehaviour
             case 1: Play(CharacterAnimator.Slot.Climb, duration, 0.05f, 0.95f); break;
             case 2:
                 // 걷거나 뛰다가 점프: 앞으로 뛰어오르는 동작. 제자리 점프: 큰 동작 없이 바로 공중 자세 (제자리에서 달리기 도약 자세가 나오면 어색하다)
-                if (ctrl != null && ctrl.PlanarVelocity.magnitude > 1.2f) Play(CharacterAnimator.Slot.Jump, 0.56f, 0.24f, 0.6f, 0.18f);   // 체공 시간(0.56초)에 공중 자세를 맞춘다
+                // Jump 클립은 다리를 1m 넘게 앞뒤로 찢는 멀리뛰기 도약이라 (자세 측정: 0.35에서 다리 간격 최대),
+                // 0.8m 짧은 점프에 쓰면 땅에서 런지하는 것처럼 보였다. 평지 점프는 무릎을 당긴 공중 자세(Fall)로 바로 넘어간다.
+                // 큰 도약 동작은 장애물 넘기(허들·넘기)에만 쓴다.
                 quickAir = true;
                 break;
             case 3: Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.6f); break;   // 무릎 올려 올라서기
