@@ -22,6 +22,8 @@ public class ParkourTest : MonoBehaviour
         if (kb != null && kb.f11Key.wasPressedThisFrame && !running) StartCoroutine(Walk());
         // F8: 디자인 둘러보기 — 편의점·상가 건물 앞으로 차례로 옮겨 간다 (가까운 곳부터)
         if (kb != null && kb.f8Key.wasPressedThisFrame && !running) NextShowcase();
+        // F7: 폐허 둘러보기 (연기·검문소·버려진 차)
+        if (kb != null && kb.f7Key.wasPressedThisFrame && !running) NextRuin();
         // F12: 시간 1시간 건너뛰기 (밤·순찰대·아침 장면 확인용)
         if (kb != null && kb.f12Key.wasPressedThisFrame && GameManager.Instance != null) { GameManager.Instance.AdvanceHours(1f); HUD.ShowMessage("(개발) 1시간 건너뜀 → " + GameManager.Instance.ClockText(), 1.5f); }
 #endif
@@ -58,6 +60,24 @@ public class ParkourTest : MonoBehaviour
         var cam = FindAnyObjectByType<IsometricCamera>();
         if (cam != null) cam.SetLook(Mathf.Atan2(-s.n.x, -s.n.z) * Mathf.Rad2Deg, 2f);
         HUD.ShowMessage($"(개발) 둘러보기 {showIdx + 1}/{showOrder.Count}: {s.label}", 2.5f);
+    }
+
+    int ruinIdx = -1;
+    void NextRuin()
+    {
+        var ctrl = FindAnyObjectByType<PlayerController>();
+        var list = CityGenerator.RuinSpots;
+        if (ctrl == null || list.Count == 0) { HUD.ShowMessage("(개발) 폐허 지점이 없다", 1.5f); return; }
+        ruinIdx = (ruinIdx + 1) % list.Count;
+        var s = list[ruinIdx];
+        Vector3 stand = s.pos + s.n * 14f;
+        stand.y = 0f;
+        if (Physics.Raycast(stand + Vector3.up * 30f, Vector3.down, out RaycastHit hit, 60f, ~((1 << 30) | (1 << 31)), QueryTriggerInteraction.Ignore)) stand.y = hit.point.y;
+        ctrl.Teleport(stand + Vector3.up * 0.05f);
+        ctrl.transform.rotation = Quaternion.LookRotation(-s.n);
+        var cam = FindAnyObjectByType<IsometricCamera>();
+        if (cam != null) cam.SetLook(Mathf.Atan2(-s.n.x, -s.n.z) * Mathf.Rad2Deg, s.label.StartsWith("연기") ? 12f : 2f);
+        HUD.ShowMessage($"(개발) 폐허 {ruinIdx + 1}/{list.Count}: {s.label}", 2.5f);
     }
 
     static GameObject Block(Transform parent, Vector3 center, Vector3 size, Color c)

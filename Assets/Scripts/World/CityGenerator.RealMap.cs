@@ -666,6 +666,7 @@ public partial class CityGenerator
     void BuildRealBuildings()
     {
         Showcases.Clear();
+        RuinSpots.Clear();
         bldRoot = new GameObject("구미_건물").transform;
         bldRoot.SetParent(root, false);
         BuildingRoot = bldRoot;

@@ -57,7 +57,7 @@ public class MinimapHUD : MonoBehaviour
         mapCam.orthographicSize = miniOrthoSize;
         mapCam.clearFlags = CameraClearFlags.SolidColor;
         mapCam.backgroundColor = new Color(0.12f, 0.12f, 0.14f);
-        mapCam.cullingMask = ~(1 << AndroidAI.AndroidLayer);
+        mapCam.cullingMask = ~((1 << AndroidAI.AndroidLayer) | (1 << 1));   // 1 = TransparentFX: 연기·불은 지도에 안 그림
         mapCam.nearClipPlane = 1f;
         mapCam.farClipPlane = 400f;
         mapCam.targetTexture = miniRT;

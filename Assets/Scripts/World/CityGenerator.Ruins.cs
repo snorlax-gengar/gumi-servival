@@ -9,6 +9,15 @@ using UnityEngine;
 public partial class CityGenerator
 {
     Transform ruinRoot, fxRoot;
+    /// <summary>개발용 F7 둘러보기 지점</summary>
+    public static readonly List<Showcase> RuinSpots = new List<Showcase>();
+    void RuinSpot(Vector3 pos, Vector2 dir, string label)
+    {
+        if (RuinSpots.Count >= 40) return;
+        Vector3 n = new Vector3(dir.x, 0, dir.y);
+        if (n.sqrMagnitude < 0.01f) n = Vector3.forward;
+        RuinSpots.Add(new Showcase { pos = pos, n = n.normalized, label = label });
+    }
     readonly Dictionary<long, MeshBuilder> ruinCells = new Dictionary<long, MeshBuilder>();
     int smokeCount, fireCount;
     const int MaxSmoke = 16, MaxFire = 10;
@@ -118,6 +127,12 @@ public partial class CityGenerator
         {
             Vector3 top = new Vector3(c.x, h + 0.3f, c.y);
             Smoke(top, 1.0f + (float)rnd.NextDouble() * 0.6f);
+            if (front >= 0)
+            {
+                Vector2 fa = pts[front], fe = pts[(front + 1) % pts.Count];
+                Vector2 fdir = (fe - fa).normalized;
+                RuinSpot(new Vector3((fa.x + fe.x) * 0.5f, 0, (fa.y + fe.y) * 0.5f), new Vector2(fdir.y, -fdir.x), "연기 나는 건물");
+            }
             if (fireCount < MaxFire && rnd.NextDouble() < 0.6) Fire(top, 1.3f);
         }
     }
@@ -185,6 +200,7 @@ public partial class CityGenerator
                             Kit.Box(car, new Vector3(0, 0.92f, 1.9f), new Vector3(1.4f, 0.06f, 0.5f), Kit.Loot, name: "트렁크 표시");
                         }
                         jams++;
+                        if (j == 0 && rnd.NextDouble() < 0.3) RuinSpot(new Vector3(q.x, 0, q.y), d, "버려진 차");
                     }
                 }
 
@@ -192,6 +208,8 @@ public partial class CityGenerator
                 if (major && checkpoints < 14 && hw > 3f && rnd.NextDouble() < 0.04)
                 {
                     Checkpoint(a + d * (L * 0.5f), d, n, hw, rnd);
+                    Vector2 cpq = a + d * (L * 0.5f);
+                    RuinSpot(new Vector3(cpq.x, 0, cpq.y), d, "검문소");
                     checkpoints++;
                 }
 
@@ -366,6 +384,7 @@ public partial class CityGenerator
     {
         if (smokeMat == null) smokeMat = TransparentMat("Universal Render Pipeline/Particles/Unlit", SoftTex(), new Color(0.22f, 0.21f, 0.2f, 1f), false);
         var go = new GameObject("연기 기둥");
+        go.layer = 1;   // TransparentFX: 미니맵에서 빼려고
         go.transform.SetParent(fxRoot, false);
         go.transform.localPosition = pos;
         go.transform.localRotation = Quaternion.Euler(-90f, 0, 0);
@@ -377,11 +396,11 @@ public partial class CityGenerator
         main.startSpeed = new ParticleSystem.MinMaxCurve(1.6f, 2.6f);
         main.startSize = new ParticleSystem.MinMaxCurve(2.5f * scale, 4.5f * scale);
         main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-        main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.16f, 0.15f, 0.14f, 0.55f), new Color(0.32f, 0.3f, 0.28f, 0.45f));
+        main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.1f, 0.095f, 0.09f, 0.85f), new Color(0.24f, 0.23f, 0.22f, 0.75f));
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.maxParticles = 140;
+        main.maxParticles = 200;
         main.gravityModifier = -0.02f;
-        var em = ps.emission; em.rateOverTime = 7f * scale;
+        var em = ps.emission; em.rateOverTime = 11f * scale;
         var sh = ps.shape; sh.shapeType = ParticleSystemShapeType.Cone; sh.angle = 10f; sh.radius = 0.8f * scale;
         var vel = ps.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World;
         vel.x = new ParticleSystem.MinMaxCurve(0.7f, 1.3f); vel.y = new ParticleSystem.MinMaxCurve(0f, 0f); vel.z = new ParticleSystem.MinMaxCurve(0.2f, 0.5f);
@@ -405,6 +424,7 @@ public partial class CityGenerator
     {
         if (fireMat == null) fireMat = TransparentMat("Universal Render Pipeline/Particles/Unlit", SoftTex(), new Color(1f, 0.55f, 0.2f, 1f), true);
         var go = new GameObject("불");
+        go.layer = 1;   // TransparentFX: 미니맵에서 빼려고
         go.transform.SetParent(fxRoot, false);
         go.transform.localPosition = pos;
         go.transform.localRotation = Quaternion.Euler(-90f, 0, 0);
@@ -432,6 +452,7 @@ public partial class CityGenerator
         pr.receiveShadows = false;
         ps.Play();
         var lg = new GameObject("불빛");
+        lg.layer = 1;
         lg.transform.SetParent(go.transform, false);
         lg.transform.localPosition = new Vector3(0, 0, 0.8f);
         var l = lg.AddComponent<Light>();
