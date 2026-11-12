@@ -149,6 +149,18 @@ public class ParkourTest : MonoBehaviour
                 yield return null;
             }
         }
+        // 점프: 제자리 → 걷다가 → 뛰다가
+        ctrl.DebugMove = Vector3.zero; ctrl.DebugRun = false;
+        yield return new WaitForSeconds(0.4f);
+        ctrl.DebugJump = true;
+        yield return new WaitForSeconds(1.3f);
+        foreach (bool run in new[] { false, true })
+        {
+            ctrl.DebugMove = run ? Vector3.forward : Vector3.back; ctrl.DebugRun = run;   // 시험장 끝으로 떨어지지 않게 방향을 바꿔 가며
+            yield return new WaitForSeconds(run ? 1.0f : 1.2f);
+            ctrl.DebugJump = true;
+            yield return new WaitForSeconds(1.2f);
+        }
         ctrl.DebugMove = null; ctrl.DebugRun = false; ctrl.DebugCrouch = false;
         yield return new WaitForSeconds(0.5f);
         if (recorded && rec.IsRecording) rec.StopRecording();
