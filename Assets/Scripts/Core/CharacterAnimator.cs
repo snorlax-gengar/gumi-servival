@@ -12,8 +12,8 @@ using UnityEngine.Playables;
 /// </summary>
 public class CharacterAnimator : MonoBehaviour
 {
-    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5, Jump = 6, Fall = 7, Vault = 8, Climb = 9, Hurdle = 10, Drop = 11, CrouchIdle = 12 }
-    const int SlotCount = 13;
+    public enum Slot { Idle = 0, Walk = 1, Run = 2, Attack = 3, Death = 4, Crouch = 5, Jump = 6, Fall = 7, Vault = 8, Climb = 9, Hurdle = 10, Drop = 11, CrouchIdle = 12, JumpA = 13, JumpB = 14 }
+    const int SlotCount = 15;
 
     public float walkReference = 1.6f;   // 이 속도(m/s)에서 걷기 동작이 완전히 섞인다
     public float runReference = 4.5f;    // 이 속도에서 달리기 동작이 완전히 섞인다
@@ -58,7 +58,7 @@ public class CharacterAnimator : MonoBehaviour
         walkOffset = FootPhase(animator, clips[(int)Slot.Walk]);
         runOffset = FootPhase(animator, clips[(int)Slot.Run]);
         crouchOffset = FootPhase(animator, clips[(int)Slot.Crouch]);
-        if (!profiled && clips[(int)Slot.Jump] != null) { profiled = true; ProfileClip(animator, clips[(int)Slot.Jump]); if (clips[(int)Slot.Fall] != null) ProfileClip(animator, clips[(int)Slot.Fall]); }
+        if (!profiled && clips[(int)Slot.Jump] != null) { profiled = true; foreach (var ps in new[] { Slot.JumpA, Slot.JumpB }) if (clips[(int)ps] != null) ProfileClip(animator, clips[(int)ps]); }
         CaptureArms(animator);
         animator.cullingMode = alwaysAnimate ? AnimatorCullingMode.AlwaysAnimate : AnimatorCullingMode.CullUpdateTransforms;
 

@@ -103,6 +103,8 @@ public class PlayerVisual : MonoBehaviour
                 { CharacterAnimator.Slot.Vault, new[] { "vault" } },
                 { CharacterAnimator.Slot.Climb, new[] { "climb" } },
                 { CharacterAnimator.Slot.Hurdle, new[] { "hurdle" } },
+                { CharacterAnimator.Slot.JumpA, new[] { "jumpa" } },
+                { CharacterAnimator.Slot.JumpB, new[] { "jumpb" } },
                 { CharacterAnimator.Slot.Drop, new[] { "drop" } },
             },
             null);
