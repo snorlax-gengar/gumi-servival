@@ -58,6 +58,7 @@ public class CharacterAnimator : MonoBehaviour
         walkOffset = FootPhase(animator, clips[(int)Slot.Walk]);
         runOffset = FootPhase(animator, clips[(int)Slot.Run]);
         crouchOffset = FootPhase(animator, clips[(int)Slot.Crouch]);
+        if (!profiled && clips[(int)Slot.Jump] != null) { profiled = true; ProfileClip(animator, clips[(int)Slot.Jump]); if (clips[(int)Slot.Fall] != null) ProfileClip(animator, clips[(int)Slot.Fall]); }
         CaptureArms(animator);
         animator.cullingMode = alwaysAnimate ? AnimatorCullingMode.AlwaysAnimate : AnimatorCullingMode.CullUpdateTransforms;
 
@@ -110,6 +111,32 @@ public class CharacterAnimator : MonoBehaviour
         catch (System.Exception e) { Debug.LogWarning($"[Gumi] 발 박자 측정 실패 ({clip.name}): {e.Message}"); return 0f; }
         Debug.Log($"[Gumi] 발 박자 {clip.name}: 왼발 앞 = {bestT:0.00}");
         return bestT;
+    }
+
+    /// <summary>개발용: 클립 자세를 20등분해 골반·발 높이를 로그로 남긴다 (점프 구간 맞추기용)</summary>
+    static bool profiled;
+    static void ProfileClip(Animator animator, AnimationClip clip)
+    {
+        if (!animator.isHuman) return;
+        var hip = animator.GetBoneTransform(HumanBodyBones.Hips);
+        var lf = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+        var rf = animator.GetBoneTransform(HumanBodyBones.RightFoot);
+        if (hip == null || lf == null || rf == null) return;
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"[Gumi] 클립 자세 {clip.name} ({clip.length:0.00}s): t hip lf rf sep\n");
+        var tr = animator.transform;
+        try
+        {
+            for (int k = 0; k <= 20; k++)
+            {
+                float t = k / 20f;
+                clip.SampleAnimation(animator.gameObject, t * clip.length);
+                Vector3 h = tr.InverseTransformPoint(hip.position), l = tr.InverseTransformPoint(lf.position), r = tr.InverseTransformPoint(rf.position);
+                sb.Append($"{t:0.00} {h.y:0.00} {l.y:0.00} {r.y:0.00} {l.z - r.z:0.00}\n");
+            }
+        }
+        catch (System.Exception e) { sb.Append(e.Message); }
+        Debug.Log(sb.ToString());
     }
 
     static AnimationClip Find(AnimationClip[] all, string[] keys, string[] exclude)

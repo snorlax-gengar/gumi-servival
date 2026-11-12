@@ -185,7 +185,7 @@ public class PlayerVisual : MonoBehaviour
             case 1: Play(CharacterAnimator.Slot.Climb, duration, 0.05f, 0.95f); break;
             case 2:
                 // 걷거나 뛰다가 점프: 앞으로 뛰어오르는 동작. 제자리 점프: 큰 동작 없이 바로 공중 자세 (제자리에서 달리기 도약 자세가 나오면 어색하다)
-                if (ctrl != null && ctrl.PlanarVelocity.magnitude > 1.2f) Play(CharacterAnimator.Slot.Jump, 0.45f, 0.2f, 0.55f, 0.3f);
+                if (ctrl != null && ctrl.PlanarVelocity.magnitude > 1.2f) Play(CharacterAnimator.Slot.Jump, 0.56f, 0.24f, 0.6f, 0.18f);   // 체공 시간(0.56초)에 공중 자세를 맞춘다
                 quickAir = true;
                 break;
             case 3: Play(CharacterAnimator.Slot.Jump, duration, 0.15f, 0.6f); break;   // 무릎 올려 올라서기

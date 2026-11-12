@@ -43,7 +43,7 @@ public class PlayerController : MonoBehaviour
     }
 
     [Header("점프 · 넘기")]
-    public float jumpSpeed = 4.6f;          // 약 1.1m
+    public float jumpSpeed = 5.6f;          // 높이 약 0.8m, 체공 0.56초 (4.6은 0.5m 깡충 뛰기라 다리 벌린 점프 동작이 땅에서 런지하는 것처럼 보였다)
     public float jumpStamina = 8f, vaultStamina = 6f;
     public float vaultMaxHeight = 1.35f;    // 이보다 낮은 장애물은 넘어간다 (차, 방호벽, 화분, 낮은 담)
     public float vaultTime = 0.6f;
